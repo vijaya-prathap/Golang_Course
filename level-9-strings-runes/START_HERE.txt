@@ -1,0 +1,398 @@
+================================================================================
+                       LEVEL 9: STRINGS & RUNES
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 9! You've mastered slices (Level 8). Now it's time to go
+deep on something you've used since Level 1 without fully understanding it:
+STRINGS.
+
+Level 6 (Loops) briefly showed that ranging over "héllo" gives runes, not
+bytes, and that len() counts bytes while there are actually 5 characters.
+This level explains exactly WHY, and gives you the full toolkit for working
+with text correctly - byte vs rune, every conversion between them, the
+strings package, efficient string building, and Unicode-aware operations.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why a Go string is an immutable, UTF-8 encoded sequence of bytes
+✅ The precise difference between byte (uint8) and rune (int32)
+✅ Converting between string, []byte, and []rune - and when each is needed
+✅ The strings package: searching, splitting, trimming, replacing, casing
+✅ strings.Builder and why naive += concatenation is O(n^2)
+✅ strconv in a strings context (bridging back to Level 3)
+✅ Unicode-aware operations with unicode and unicode/utf8
+✅ Correct (rune-safe) string reversal, palindrome checking, and counting
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 9 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 8 (Slices)
+  ✅ Comfortable with for/range loops, including range over strings (Level 6)
+  ✅ Comfortable with maps for frequency counting (introduced in Level 6)
+  ✅ Basic familiarity with strconv.Atoi/Itoa (Level 3)
+
+If you haven't done Level 8, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Strings, Bytes, and Runes (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 35 min
+  → Complete Exercises 1-3 - 1 hour 15 min
+
+Day 2 - Efficient Building & strconv (1.5 hours)
+  → Read README.md Sections 4-6 - 25 min
+  → Complete Exercises 4-5 - 1 hour 5 min
+
+Day 3 - Unicode-Aware Text Processing (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 6-8 - 1.5 hours
+
+Day 4 - Real Programs & Consolidation (1.5 hours)
+  → Complete Exercises 9-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review the byte vs rune distinction
+  → Ask: "Can I explain why a byte-based reversal breaks?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Is a String, Really?
+  → A Go string is an immutable, read-only slice of bytes
+  → Those bytes are the UTF-8 encoding of whatever text you wrote
+  → There is no separate "character array" - just bytes, decoded on demand
+
+Why This Matters:
+  → ASCII text (plain English letters/digits) hides the distinction:
+    1 byte == 1 character, always
+  → The moment real-world text shows up - accents, currency symbols,
+    emoji, CJK characters - bytes and characters diverge, and code that
+    assumed otherwise breaks silently
+
+================================================================================
+                 byte vs rune: THE CORE DISTINCTION
+================================================================================
+
+  byte  → alias for uint8   → ONE raw UTF-8 code unit (0-255)
+  rune  → alias for int32   → ONE decoded Unicode CHARACTER (1-4 bytes encoded)
+
+  s := "héllo"
+  s[0]              // 104  ('h' - single-byte, looks fine)
+  s[1]              // 195  (HALF of the 2-byte 'é' - NOT a character!)
+
+  len(s)                        // 6  - bytes
+  utf8.RuneCountInString(s)     // 5  - characters
+
+KEY RULE: s[i] ALWAYS gives you a byte. If you need a character, decode
+first - either range over the string, or convert to []rune.
+
+================================================================================
+              CONVERTING string, []byte, AND []rune
+================================================================================
+
+  b := []byte(s)     // string -> []byte : raw bytes, for mutation/binary work
+  r := []rune(s)     // string -> []rune : characters, for indexing/editing
+
+  s1 := string(b)     // []byte -> string
+  s2 := string(r)     // []rune -> string
+
+Both conversions COPY memory. Use them when you need indexed access or
+in-place editing. If you're only iterating read-only, just use range -
+it decodes runes for you with no extra allocation.
+
+================================================================================
+              strings.Builder: STOP USING += IN LOOPS
+================================================================================
+
+Strings are immutable, so every += allocates a brand-new string and copies
+everything built so far into it:
+
+  result := ""
+  for i := 0; i < n; i++ {
+      result += "x"      // O(n^2) total work for n iterations!
+  }
+
+Fix it with strings.Builder, which grows an internal buffer and only
+builds the final string once:
+
+  var b strings.Builder
+  for i := 0; i < n; i++ {
+      b.WriteString("x")   // O(n) total work
+  }
+  result := b.String()
+
+Measured on a 50,000-character string: naive ≈110ms vs Builder ≈134µs -
+roughly 800x faster in that run. Numbers vary by machine, but Builder
+always wins, and the gap grows with n.
+
+================================================================================
+              REVERSING A STRING: WRONG vs RIGHT
+================================================================================
+
+WRONG - reversing raw bytes breaks multi-byte characters:
+
+  reverseBytesWRONG("héllo")   → "oll\xa9\xc3h"    BROKEN, invalid UTF-8!
+  reverseBytesWRONG("日本語")   → "\x9e\xaa謜楗\xe6" BROKEN!
+
+RIGHT - decode to runes first, reverse those, re-encode:
+
+  reverseRunesCorrect("héllo")   → "olléh"    CORRECT
+  reverseRunesCorrect("日本語")   → "語本日"    CORRECT
+
+Notice both approaches look identical on ASCII input like "Hello" - the
+bug only shows up once multi-byte characters appear. Never trust a
+reversal example that's only been tested on ASCII!
+
+================================================================================
+              UNICODE-AWARE OPERATIONS
+================================================================================
+
+Don't hardcode ASCII ranges - use the unicode package instead:
+
+  unicode.IsLetter(r)     // true for 'a', 'A', 'é', '世' - any language
+  unicode.IsDigit(r)      // true for '0'-'9' (and other Unicode digits)
+  unicode.IsSpace(r)      // true for space, tab, newline, ...
+  unicode.IsUpper(r)      // case check
+  unicode.ToUpper(r)      // case conversion
+
+  utf8.RuneCountInString(s)   // character count without allocating []rune
+  utf8.DecodeRuneInString(s)  // decode one rune + its byte width
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import (
+    "fmt"
+    "strings"
+    "unicode/utf8"
+)
+
+func main() {
+    s := "héllo, 世界!"
+
+    fmt.Println("bytes:", len(s))
+    fmt.Println("runes:", utf8.RuneCountInString(s))
+    fmt.Println("upper:", strings.ToUpper(s))
+
+    var b strings.Builder
+    b.WriteString("Go")
+    b.WriteString(" is fun")
+    fmt.Println(b.String())
+}
+
+Output:
+  bytes: 14
+  runes: 9
+  upper: HÉLLO, 世界!
+  Go is fun
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. STRINGS
+   Immutable, UTF-8 encoded byte sequences. len() counts bytes.
+
+2. byte vs rune
+   byte = uint8, one raw code unit. rune = int32, one decoded character.
+
+3. CONVERSIONS
+   []byte(s) for raw bytes. []rune(s) for character-level access. Both copy.
+
+4. strings.Builder
+   Use it instead of += in loops - O(n) instead of O(n^2).
+
+5. UNICODE AWARENESS
+   unicode.IsLetter/IsDigit/IsSpace and utf8.RuneCountInString work for
+   every language, not just ASCII.
+
+6. REVERSAL/REORDERING
+   Always operate on []rune, never []byte or raw string indices.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Treating s[i] as a character
+  s := "héllo"
+  s[1]              // 195, a byte fragment - NOT 'é'
+
+✅ RIGHT: Decode to runes first
+  []rune(s)[1]      // 'é'
+
+---
+
+❌ WRONG: Reversing (or reordering) raw bytes on non-ASCII text
+  b := []byte(s)
+  // swap b[i], b[j]...   corrupts multi-byte characters
+
+✅ RIGHT: Reverse runes instead
+  r := []rune(s)
+  // swap r[i], r[j]...   preserves characters correctly
+
+---
+
+❌ WRONG: Concatenating with += inside a loop
+  result := ""
+  for _, s := range many { result += s }   // O(n^2)
+
+✅ RIGHT: Use strings.Builder
+  var b strings.Builder
+  for _, s := range many { b.WriteString(s) }   // O(n)
+
+---
+
+❌ WRONG: Hardcoded ASCII letter checks
+  (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+
+✅ RIGHT: Unicode-aware check
+  unicode.IsLetter(r)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-6 (about 50 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the byte/rune conceptual diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Immutability, byte/rune, conversions, strings package, Builder,
+     strconv, Unicode, and manipulation tasks explained with examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification (all captured from real runs)
+
+📄 STUDY_GUIDE.md
+   → String/byte/rune conceptual diagram
+   → strings package and unicode/unicode-utf8 reference tables
+   → Wrong-vs-right reversal comparison
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why doesn't s[0] give me the first character?
+A: s[i] indexes bytes, not characters. For ASCII text they're the same
+   thing; for anything else (accents, emoji, CJK), one character can be
+   1-4 bytes, so s[i] may only be a fragment.
+
+Q: Why is len(s) not the character count?
+A: len() counts bytes in the UTF-8 encoding. Use
+   utf8.RuneCountInString(s) for the character count.
+
+Q: When do I convert to []byte vs []rune?
+A: []byte for raw/binary work. []rune when you need to index, edit, or
+   reorder by character. If you're just iterating, use range - no
+   conversion needed.
+
+Q: Why is my string-building loop slow?
+A: You're probably using += inside the loop. Every += reallocates and
+   copies. Use strings.Builder instead.
+
+Q: Why did my string-reversal function break on non-English text?
+A: It reversed bytes instead of runes. Convert to []rune first.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 9?
+================================================================================
+
+Level 10: Maps
+  - Map declaration, zero values, and the comma-ok idiom
+  - Adding, updating, and deleting keys
+  - Maps as sets and frequency counters
+  - Nested maps and maps of structs
+
+You'll use everything from Level 9 constantly in Level 10 - map keys are
+very often strings, and you now know exactly how those keys are made of
+bytes and characters underneath!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-3
+4. Come back and start Exercise 1
+
+Text is everywhere in real programs - file names, user input, JSON, logs,
+URLs. Getting strings right now means every future level goes smoother.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 10 - Maps
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Intermediate)
+
+Remember:
+- Strings are immutable, UTF-8 encoded bytes - not character arrays
+- byte is a raw code unit (uint8); rune is a decoded character (int32)
+- s[i] gives a byte; range gives runes
+- strings.Builder beats += in loops, always
+- Reverse/reorder runes, never bytes, on real-world text
+
+Let's go! 🎉
+
+================================================================================

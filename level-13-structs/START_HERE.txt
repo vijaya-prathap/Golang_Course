@@ -1,0 +1,409 @@
+================================================================================
+                          LEVEL 13: STRUCTS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 13! You've mastered pointers (Level 12) - &, *, and the
+difference between copying a value and sharing it. Now it's time to learn
+STRUCTS - Go's way of grouping related data into one named type.
+
+This is where "Go doesn't have classes" starts making sense: a struct is
+the DATA half of Go's object story. Level 14 (Methods) adds the behavior
+half. Together with interfaces (Level 15), that's Go's whole answer to
+object-oriented programming - built on composition, not inheritance.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Defining structs, field types, and zero-value structs
+✅ Struct literals: keyed (preferred) vs positional
+✅ Struct value semantics: copy on assignment vs pointer sharing
+✅ Comparing structs with == (and when it won't compile)
+✅ Nested structs and embedded structs with field promotion
+✅ Anonymous structs, struct tags, and the NewX constructor convention
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 13 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 12 (Pointers)
+  ✅ Comfortable with &, *, and nil pointers
+  ✅ Understand value vs pointer parameters
+  ✅ Comfortable creating values with &T{}
+
+If you haven't done Level 12, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Defining Structs & Zero Values (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Complete Exercises 1-2 - 1 hour 25 min
+
+Day 2 - Value Semantics & Comparison (2 hours)
+  → Read README.md Sections 3-5 - 30 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - Nesting & Embedding (2 hours)
+  → Read README.md Sections 6-7 - 25 min
+  → Complete Exercises 5-6 - 1 hour 35 min
+
+Day 4 - Anonymous Structs, Tags & Constructors (1.5 hours)
+  → Read README.md Sections 8-10 - 20 min
+  → Complete Exercises 7-9 - 1 hour 10 min
+
+Day 5 - Comprehensive Practice & Consolidation (1.5 hours)
+  → Complete Exercise 10 - 45 min
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Struct?
+  → A composite type that groups named fields into one value
+  → Go's answer to "objects" - just the data part
+  → A record / row / form with labeled boxes, all copied together
+
+Why Structs Matter:
+  → Real data has shape: a Person has a name, age, and address - not
+    three separate parallel variables you have to keep in sync
+  → Structs are the foundation every later level builds on: methods
+    (14), interfaces (15), JSON (19), database rows (29), and more
+
+================================================================================
+                 DEFINING AND CREATING STRUCTS
+================================================================================
+
+1. DEFINE A STRUCT TYPE
+
+  type Person struct {
+      Name string
+      Age  int
+      City string
+  }
+
+2. ZERO-VALUE STRUCT (immediately usable!)
+
+  var p Person
+  fmt.Printf("%+v\n", p) // {Name: Age:0 City:}
+
+3. KEYED LITERAL (✅ preferred - order-independent, can skip fields)
+
+  alice := Person{Name: "Alice", Age: 30, City: "Lisbon"}
+  carol := Person{Name: "Carol"} // Age and City are zero-valued
+
+4. POSITIONAL LITERAL (❌ avoid - fragile, must supply every field)
+
+  bob := Person{"Bob", 25, "Porto"}
+
+================================================================================
+              STRUCTS ARE VALUE TYPES: COPY VS POINTER
+================================================================================
+
+This is THE big idea of this level.
+
+  original := Point{X: 1, Y: 2}
+  copied := original      // COPIES every field
+  copied.X = 100
+  fmt.Println(original)   // {1 2} - UNCHANGED!
+
+  ptr := &original        // ptr POINTS AT original - no copy
+  ptr.X = 999              // writes THROUGH to original
+  fmt.Println(original)   // {999 2} - changed!
+
+Same rule for function parameters:
+
+  func f(p Point)  { }   // p is a copy - mutations don't escape
+  func g(p *Point) { }   // p shares the caller's struct - mutations DO escape
+
+================================================================================
+                    COMPARING STRUCTS
+================================================================================
+
+  a == b   // true if EVERY field is equal
+  var zero Point
+  a == zero          // check "is this the zero value?"
+
+BUT: if a struct has a slice, map, or function field, == won't compile:
+
+  type Team struct {
+      Name    string
+      Members []string
+  }
+  t1 == t2
+  // invalid operation: t1 == t2 (struct containing []string cannot be compared)
+
+================================================================================
+              NESTED VS EMBEDDED STRUCTS
+================================================================================
+
+NESTED (named field) - "has a", always full path:
+
+  type Person struct {
+      Name    string
+      Address Address
+  }
+  p.Address.City
+
+EMBEDDED (anonymous field) - fields are PROMOTED:
+
+  type Dog struct {
+      Animal   // no field name - just the type
+      Breed string
+  }
+  d.Name         // promoted shortcut for d.Animal.Name
+  d.Animal.Name  // full path, always works too
+
+KEY GOTCHA - Shadowing: if the outer struct declares its own field with
+the same name, the outer one wins and the promoted one is only reachable
+through its full path:
+
+  type Cat struct {
+      Animal
+      Name string // shadows the promoted Animal.Name
+  }
+  c.Name          // "Whiskers" - the outer field
+  c.Animal.Name   // the embedded one, still reachable
+
+================================================================================
+                 ANONYMOUS STRUCTS & TAGS
+================================================================================
+
+Anonymous struct - a one-off type, no `type` declaration needed:
+
+  server := struct {
+      Host string
+      Port int
+  }{Host: "localhost", Port: 8080}
+
+Struct tags - backtick metadata read by libraries via reflection:
+
+  type User struct {
+      Name string `json:"name"`
+  }
+  // Tags do nothing by themselves - encoding/json (Level 19) reads them
+
+================================================================================
+                 THE NewX CONSTRUCTOR CONVENTION
+================================================================================
+
+Go has no constructors. The idiom: a New<Type> function returning a
+pointer to a fully-initialized struct.
+
+  func NewBankAccount(owner string, balance float64) *BankAccount {
+      if balance < 0 {
+          balance = 0
+      }
+      return &BankAccount{Owner: owner, Balance: balance, Active: true}
+  }
+
+  acct := NewBankAccount("Alice", 250.75)
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. DEFINING
+   type Name struct { Field Type }   var v Name  (zero-value, ready to use)
+
+2. LITERALS
+   Keyed (preferred, order-independent) vs positional (fragile, avoid)
+
+3. VALUE SEMANTICS
+   Assignment/value params COPY. Pointers SHARE (auto-dereferenced access).
+
+4. COMPARISON
+   == works if every field is comparable; a slice/map/func field breaks it.
+
+5. COMPOSITION
+   Nested (has-a, full path) vs embedded (fields PROMOTED, watch shadowing)
+
+6. EXTRAS
+   Anonymous structs for one-offs, tags for reflection metadata (Level 19),
+   NewX(...) *X constructors for validation and defaults
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Assuming assignment shares
+  b := a
+  b.Age = 99
+  fmt.Println(a.Age) // still the OLD value - a wasn't touched
+
+✅ RIGHT: Use a pointer when you want sharing
+  b := &a
+
+---
+
+❌ WRONG: Mutating through a value parameter
+  func birthday(p Person) { p.Age++ }   // caller sees no change
+
+✅ RIGHT
+  func birthday(p *Person) { p.Age++ }
+
+---
+
+❌ WRONG: Positional literal field mix-ups
+  r := Rect{5, 10}   // which is Width, which is Height?
+
+✅ RIGHT
+  r := Rect{Width: 10, Height: 5}
+
+---
+
+❌ WRONG: == on a struct with a slice/map field (won't compile)
+  t1 == t2
+  // invalid operation: t1 == t2 (struct containing []string cannot be compared)
+
+---
+
+❌ WRONG: Forgetting the embedded type key in a literal
+  d := Dog{Name: "Rex"}   // unknown field Name in struct literal of type Dog
+
+✅ RIGHT
+  d := Dog{Animal: Animal{Name: "Rex"}}
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the memory layout and embedding diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Definition, literals, value semantics, comparison, composition,
+     anonymous structs, tags, and constructors - explained with examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → Struct memory layout diagram
+   → Literal forms and comparable-field-types tables
+   → Value-copy vs pointer-sharing diagram
+   → Embedding/promotion and shadowing diagrams
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Are structs the same as classes?
+A: No - a struct is just the data. Level 14 (Methods) adds behavior, and
+   Level 15 (Interfaces) adds polymorphism. No inheritance anywhere -
+   composition (embedding) is Go's alternative.
+
+Q: Why does assigning a struct copy it?
+A: A struct is a value type, like an array. Its fields live inline in one
+   block of memory - assignment copies that whole block. Use a pointer
+   when you want the change to be visible elsewhere.
+
+Q: Why can't I use == on some structs?
+A: If any field is a slice, map, or function, Go can't define cheap
+   equality for it, so the whole struct loses ==. Compare fields manually
+   or use reflect.DeepEqual (Level 26) instead.
+
+Q: What's the difference between nesting and embedding?
+A: Nesting uses a named field and always needs the full path
+   (p.Address.City). Embedding uses just the type name and PROMOTES its
+   fields so you can access them directly (d.Name instead of d.Animal.Name).
+
+Q: Do I need to understand struct tags deeply right now?
+A: No - just recognize the `json:"name"` syntax. Level 19 (JSON) is where
+   you'll actually use them.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 13?
+================================================================================
+
+Level 14: Methods
+  - Attaching behavior to your struct types
+  - Value receivers vs pointer receivers
+  - Method promotion through embedding
+  - Method sets - the doorway to interfaces
+
+You'll attach real behavior to the structs you just learned to build!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Structs are how your programs model real things as structured data.
+Master them now and every future level - methods, interfaces, JSON,
+databases - gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 14 - Methods
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- A struct groups named fields into one value - Go's data-only "object"
+- Assignment/value params COPY a struct; a pointer SHARES it
+- == works only when every field is comparable
+- Embedding promotes fields (and later, methods) - composition, not inheritance
+
+Let's go! 🎉
+
+================================================================================

@@ -1,0 +1,423 @@
+================================================================================
+                          LEVEL 15: INTERFACES
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 15! You've mastered methods (Level 14) - attaching behavior
+to your own types with value and pointer receivers. Now it's time for
+INTERFACES - arguably the single most important concept for writing
+idiomatic Go.
+
+An interface describes what a type can DO, not what it IS. Any type with
+the right methods satisfies an interface automatically - no "implements"
+keyword, no inheritance, no ceremony.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What an interface is - a contract describing behavior, not data
+✅ Implicit satisfaction - no "implements" keyword, ever
+✅ Polymorphism: one function, many concrete types
+✅ Interface values as a (dynamic type, dynamic value) pair
+✅ fmt.Stringer and the empty interface (any)
+✅ Type assertions (comma-ok vs the panicking form) and type switches
+✅ Method sets and interface satisfaction, including the pointer-receiver
+   compile error
+✅ The nil-interface vs typed-nil trap - the most famous Go gotcha
+✅ Interface composition (Reader + Writer = ReadWriter, io-style)
+✅ Design guidance: small interfaces, defined at the consumer
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 15 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3-3.5 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 14 (Methods)
+  ✅ Comfortable with value receivers vs pointer receivers
+  ✅ Understand method sets: T gets value-receiver methods; *T gets both
+  ✅ Comfortable with structs and struct embedding
+
+If you haven't done Level 14, go back and complete it first - method sets
+are the foundation for half of this level.
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The Contract & Implicit Satisfaction (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 35 min
+  → Complete Exercise 1 - 1 hour 15 min
+
+Day 2 - Interface Values & fmt.Stringer (2 hours)
+  → Read README.md Sections 4-6 - 30 min
+  → Complete Exercises 2-3 - 1.5 hours
+
+Day 3 - Assertions & Type Switches (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 4-5 (captures a real panic!) - 1.5 hours
+
+Day 4 - Method Sets & the Typed-nil Trap (2.5 hours)
+  → Read README.md Sections 9-10 - 30 min
+  → Complete Exercises 6-7 (captures a real compile error!) - 2 hours
+
+Day 5 - Composition & Design (2 hours)
+  → Read README.md Sections 11-12 - 25 min
+  → Complete Exercises 8-9 - 1.5 hours
+
+Day 6 - Comprehensive Practice (1.5 hours)
+  → Complete Exercise 10 - 1.5 hours
+
+Day 7 - Consolidate (1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md and STUDY_GUIDE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is an Interface?
+  → A named set of method signatures - a contract describing BEHAVIOR
+  → No fields, no method bodies, no list of implementing types
+  → A struct is a noun ("what a thing IS"); an interface is a job
+    description ("what a thing can DO")
+
+Why Interfaces Matter:
+  → They are how Go achieves polymorphism WITHOUT inheritance
+  → Implicit satisfaction decouples packages - a type can satisfy an
+    interface it has never even heard of
+  → Nearly the entire standard library (io.Reader, fmt.Stringer, error,
+    sort.Interface) is built from small, one- or two-method interfaces
+
+================================================================================
+                 IMPLICIT SATISFACTION - NO "implements"
+================================================================================
+
+  type Speaker interface {
+      Speak() string
+  }
+
+  type Dog struct{ Name string }
+  func (d Dog) Speak() string { return d.Name + " says Woof!" }
+
+  // Dog never mentions Speaker anywhere.
+  // Having a Speak() string method IS satisfying the interface.
+
+  var s Speaker = Dog{Name: "Rex"}
+  fmt.Println(s.Speak()) // Rex says Woof!
+
+================================================================================
+              INTERFACE VALUES: THE (TYPE, VALUE) PAIR
+================================================================================
+
+Every interface value is really a two-slot box:
+
+  var s Shape                s = Circle{Radius: 2}
+
+  type:  nil                 type:  Circle
+  value: nil                 value: {2}
+
+  s == nil? true             s == nil? false
+
+This one model explains method dispatch, %T formatting, AND the famous
+typed-nil trap below. Learn it well.
+
+================================================================================
+                    fmt.Stringer - YOU'VE SEEN THIS BEFORE
+================================================================================
+
+  type Stringer interface {
+      String() string
+  }
+
+  func (b Book) String() string {
+      return fmt.Sprintf("%q", b.Title)
+  }
+
+  fmt.Println(b) // fmt checks for Stringer, calls String() automatically
+
+Your type satisfied an interface from the standard library - one it never
+imported - and fmt called YOUR code. That's implicit satisfaction at work.
+
+================================================================================
+              TYPE ASSERTIONS AND TYPE SWITCHES
+================================================================================
+
+  v, ok := i.(T)     // safe - ok=false + zero value if it doesn't match
+  v := i.(T)         // panics if it doesn't match:
+                      //   panic: interface conversion: interface {} is
+                      //   string, not int
+
+  switch v := i.(type) {
+  case int:    // v is an int here
+  case string: // v is a string here
+  default:     // anything else
+  }
+
+================================================================================
+           METHOD SETS: THE POINTER-RECEIVER COMPILE ERROR
+================================================================================
+
+  func (c *Counter) Increment() { c.count++ } // pointer receiver
+
+  var inc Incrementer = &Counter{} // ✅ works - *T has both receiver kinds
+  var inc Incrementer = Counter{}  // ❌ compile error:
+  // Counter does not implement Incrementer (method Increment has
+  // pointer receiver)
+
+Rule: if ANY method has a pointer receiver, store pointers in interfaces.
+
+================================================================================
+              THE TYPED-NIL TRAP (THE MOST FAMOUS GO GOTCHA)
+================================================================================
+
+  // ❌ BUGGY - concrete pointer return type
+  func validate(s string) *ValidationError {
+      if s == "" { return &ValidationError{} }
+      return nil // a nil *ValidationError - NOT a nil interface!
+  }
+
+  var err error = validate("ok")
+  fmt.Println(err == nil) // false! ← the trap (verified, real output)
+
+  // ✅ FIXED - return the interface type
+  func validate(s string) error {
+      if s == "" { return &ValidationError{} }
+      return nil // a TRUE nil interface
+  }
+
+This is exactly why idiomatic Go functions return `error`, never a
+concrete `*MyError` type.
+
+================================================================================
+                    INTERFACE COMPOSITION
+================================================================================
+
+  type Reader interface{ Read() string }
+  type Writer interface{ Write(data string) }
+
+  type ReadWriter interface {
+      Reader
+      Writer
+  }
+  // satisfied by any type with BOTH Read() and Write()
+  // modeled exactly on io.Reader / io.Writer / io.ReadWriter
+
+================================================================================
+                    DESIGN: SMALL IS BEAUTIFUL
+================================================================================
+
+"The bigger the interface, the weaker the abstraction." - Rob Pike
+
+  1. Keep interfaces small (1-2 methods)
+  2. Accept interfaces, return concrete types
+  3. Define interfaces where they're USED, not where types are defined
+  4. Don't create interfaces preemptively
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE CONTRACT
+   An interface is a set of method signatures - behavior, not data.
+
+2. IMPLICIT SATISFACTION
+   Having the methods IS implementing the interface. No keyword needed.
+
+3. THE (TYPE, VALUE) PAIR
+   Every interface value is (dynamic type, dynamic value).
+   == nil only when BOTH slots are nil.
+
+4. THE TOOLS
+   v, ok := i.(T)  and  switch v := i.(type) { }  and  any (use sparingly)
+
+5. METHOD SETS
+   T = value-receiver methods only.  *T = both kinds.
+   Any pointer receiver → store pointers in interfaces.
+
+6. THE TRAP
+   A typed nil pointer inside an interface is NOT == nil.
+   Return the interface type (error), never a concrete pointer type.
+
+7. DESIGN
+   Small interfaces, defined at the consumer, composed by embedding.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Assigning a value when a pointer receiver is needed
+  var inc Incrementer = Counter{}  // compile error
+
+✅ RIGHT
+  var inc Incrementer = &Counter{}
+
+---
+
+❌ WRONG: Returning a concrete error pointer
+  func validate(s string) *ValidationError { return nil }
+
+✅ RIGHT: Return the error interface type
+  func validate(s string) error { return nil }
+
+---
+
+❌ WRONG: Unguarded single-value assertion
+  n := i.(int) // panics if i doesn't hold an int
+
+✅ RIGHT
+  n, ok := i.(int)
+
+---
+
+❌ WRONG: Reaching for `any` when a specific interface would do
+  func process(item any)
+
+✅ RIGHT
+  func process(item Notifier)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-6 (about 50 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the (type, value) pair diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises - especially 6 and 7, which capture
+  REAL compiler and runtime output for the trickiest gotchas in Go
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Interfaces, implicit satisfaction, polymorphism, the pair model,
+     Stringer, any, assertions, switches, method sets, the typed-nil
+     trap, composition, and design guidance
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification, including a captured panic and
+     a captured compile error
+
+📄 STUDY_GUIDE.md
+   → The (type, value) pair diagram, including the typed-nil case
+   → Method-set satisfaction table
+   → Type assertion / type switch decision tree
+   → Interface design principles
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why doesn't Go have an "implements" keyword?
+A: Satisfaction is structural - having the right methods IS satisfying the
+   interface. This decouples packages entirely.
+
+Q: What is an interface value, really?
+A: A pair: (dynamic type, dynamic value). This explains dispatch, %T,
+   nil checks, and the typed-nil trap all at once.
+
+Q: Why is err != nil sometimes true even though nothing failed?
+A: The function probably returns a concrete pointer type (e.g.
+   *ValidationError) instead of error. A nil of that concrete type,
+   once wrapped in an error interface, has a non-nil dynamic type -
+   so the interface itself is not nil. Fix: return error, not the
+   pointer type.
+
+Q: When does a type NOT satisfy an interface even though "it has the
+   method"?
+A: When the method has a pointer receiver and you assigned a VALUE (not
+   a pointer) to the interface. T's method set excludes pointer-receiver
+   methods.
+
+Q: Should I use `any` often?
+A: Rarely. It forfeits compile-time type safety. Prefer a small, specific
+   interface - or generics (Level 25) for many former any use cases.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 15?
+================================================================================
+
+Level 16: Error Handling
+  - The error interface - one method, Error() string (you can read it now!)
+  - Creating and wrapping errors: errors.New, fmt.Errorf with %w
+  - errors.Is and errors.As (As uses type-assertion machinery!)
+  - Sentinel errors and custom error types - where typed-nil awareness
+    protects you directly
+
+You'll use interfaces constantly starting in Level 16 - error itself is
+just a one-method interface, used well.
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-6
+4. Come back and start Exercise 1
+
+Interfaces are the heart of idiomatic Go. Master implicit satisfaction,
+the (type, value) pair, and the typed-nil trap now, and every future
+level - error handling, generics, goroutines - reads more clearly.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 16 - Error Handling
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- A type satisfies an interface by having the right methods - no keyword
+- An interface value is a (dynamic type, dynamic value) pair
+- An interface is == nil only when BOTH halves are nil
+- Return error, never a concrete error pointer type
+- Keep interfaces small - define them where they're used
+
+Let's go! 🎉
+
+================================================================================

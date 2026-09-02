@@ -1,0 +1,363 @@
+================================================================================
+              LEVEL 30: REPOSITORY-SERVICE-HANDLER
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 30! You've built HTTP APIs (Level 27), used a REST
+framework (Level 28), and talked to a real database (Level 29). Now it's
+time to give those pieces STRUCTURE: Repository, Service, and Handler -
+three layers, each with exactly one job.
+
+This level is about the PATTERN, not a storage technology. Every example
+uses an IN-MEMORY repository (a map or slice, guarded by a mutex) instead
+of Level 29's SQLite setup, so every exercise stays 100% offline and fast.
+The Repository interface you'll define could be backed by SQL, memory, a
+file, or anything else - that decoupling IS the point of the pattern.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What the pattern is: Repository (data), Service (rules), Handler (HTTP)
+✅ The Repository layer: a small interface + an in-memory implementation
+✅ The Service layer: business rules the repository can't enforce
+✅ The Handler layer: thin HTTP translation, tested with httptest
+✅ Dependency direction: Handler -> Service -> Repository (interface)
+✅ Wiring all three layers together by hand in main() - a Level 31 preview
+✅ Why this makes testing easy: fakes at every layer boundary
+✅ Error translation: repository errors -> service errors -> HTTP status
+✅ When three layers are overkill, and when they earn their keep
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 30 Duration: 6-7 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3.5-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 29 (Database/SQL)
+  ✅ Comfortable with interfaces and implicit satisfaction (Level 15)
+  ✅ Comfortable with error wrapping and errors.Is (Level 16)
+  ✅ Comfortable with table-driven tests and mocking via interfaces (Level 26)
+  ✅ Comfortable with net/http handlers, routing, and httptest (Level 27)
+
+If you haven't done Level 29, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The Repository Layer (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Complete Exercise 1 - 1 hour 25 min
+
+Day 2 - The Service Layer (2 hours)
+  → Read README.md Section 3 - 20 min
+  → Complete Exercises 2-3 - 1.5 hours
+
+Day 3 - The Handler Layer & Wiring (2 hours)
+  → Read README.md Sections 4-6 - 30 min
+  → Complete Exercises 4-5 - 1.5 hours
+
+Day 4 - Testing & Error Translation (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 6-7 - 1.5 hours
+
+Day 5 - Dependency Direction & Full CRUD (2 hours)
+  → Complete Exercises 8-9 - 1.75 hours
+
+Day 6 - The Comprehensive Exercise (2 hours)
+  → Read README.md Sections 9-11 - 15 min
+  → Complete Exercise 10 - 1.75 hours
+
+Day 7 - Consolidate (1 hour)
+  → Try the bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is Repository-Service-Handler?
+  → A way of splitting a program into three layers, each with ONE job:
+      Repository - talks to storage, nothing else
+      Service    - enforces business rules, nothing else
+      Handler    - translates HTTP in and out, nothing else
+
+Why It Matters:
+  → A tangled "everything in one handler function" program can't be
+    tested without a real database and a real HTTP server
+  → Splitting the layers means each one can be tested, changed, and
+    understood independently
+  → Go's implicit interface satisfaction (Level 15) makes this easy to
+    wire up with zero frameworks
+
+================================================================================
+                 THE THREE LAYERS
+================================================================================
+
+1. REPOSITORY (data access only)
+
+  type UserRepository interface {
+      Create(u User) error
+      Get(id string) (User, error)
+      Update(u User) error
+      Delete(id string) error
+  }
+
+  type InMemoryUserRepository struct { /* map + mutex */ }
+  // satisfies UserRepository IMPLICITLY - Level 15 revisited
+
+2. SERVICE (business rules only, depends on the INTERFACE)
+
+  type UserService struct {
+      repo UserRepository // never the concrete type!
+  }
+
+  func (s *UserService) CreateUser(u User) error {
+      if strings.TrimSpace(u.Name) == "" {
+          return ErrInvalidName // rejected BEFORE touching the repository
+      }
+      return s.repo.Create(u)
+  }
+
+3. HANDLER (HTTP translation only, depends on the Service)
+
+  type UserHandler struct {
+      service *UserService
+  }
+
+  func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+      var u User
+      json.NewDecoder(r.Body).Decode(&u)
+      if err := h.service.CreateUser(u); err != nil {
+          http.Error(w, err.Error(), statusFor(err))
+          return
+      }
+      json.NewEncoder(w).Encode(u)
+  }
+
+================================================================================
+                 DEPENDENCY DIRECTION
+================================================================================
+
+  Handler --> Service --> Repository (interface)
+                                 ▲
+                    implemented by InMemoryUserRepository
+
+The interface is defined where it's USED (in the Service's code), not
+where it's implemented (the Repository package) - Level 15's Rule 3,
+applied to a whole architecture.
+
+================================================================================
+                 WHY THIS MAKES TESTING EASY
+================================================================================
+
+Because the Service depends on an INTERFACE, tests can hand it a fake:
+
+  type alwaysErrorRepository struct{}
+  func (alwaysErrorRepository) Create(User) error { return errStorageDown }
+  func (alwaysErrorRepository) Get(string) (User, error) {
+      return User{}, errStorageDown
+  }
+
+  service := NewUserService(alwaysErrorRepository{})
+  // now you can prove the Service handles a storage failure correctly -
+  // with ZERO real storage involved
+
+================================================================================
+                 ERROR TRANSLATION ACROSS LAYERS
+================================================================================
+
+  Repository:  ErrNotFound (wrapped with %w)
+       ↓
+  Service:     passes it through, or returns its own business error
+               (ErrInvalidName, ErrEmailTaken)
+       ↓
+  Handler:     the ONLY layer that knows what an HTTP status code is
+
+  statusFor(err error) int {
+      case errors.Is(err, ErrInvalidName): return 400
+      case errors.Is(err, ErrEmailTaken):  return 409
+      case errors.Is(err, ErrNotFound):    return 404
+      default:                              return 500
+  }
+
+================================================================================
+                    KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE THREE LAYERS
+   Repository (data), Service (rules), Handler (HTTP) - one job each.
+
+2. DEPENDENCY DIRECTION
+   Handler -> Service -> Repository interface. Never the reverse.
+
+3. INTERFACE OWNERSHIP
+   Defined where it's used (the consumer's package), not where it's
+   implemented.
+
+4. TESTING
+   Fakes at every boundary - no real storage or network needed anywhere.
+
+5. ERROR TRANSLATION
+   errors.Is at every boundary; only the Handler knows about status codes.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Service depends on a concrete repository type
+  type UserService struct { repo *InMemoryUserRepository }
+
+✅ RIGHT: Service depends on the interface
+  type UserService struct { repo UserRepository }
+
+---
+
+❌ WRONG: Validation logic living in the Handler
+  if u.Name == "" { http.Error(w, "name required", 400); return }
+
+✅ RIGHT: Handler delegates to the Service, which owns validation
+  if err := h.service.CreateUser(u); err != nil { ... }
+
+---
+
+❌ WRONG: Repository returning HTTP status codes
+  func (r *InMemoryUserRepository) Get(id string) (User, int, error)
+
+✅ RIGHT: Repository returns a plain error; the Handler decides the status
+  func (r *InMemoryUserRepository) Get(id string) (User, error)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the three-layer architecture diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, then the bonus challenges
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → The pattern, all three layers, dependency direction, wiring,
+     testing with fakes, error translation, best practices, mistakes
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands, all offline
+   → Real captured go run/go test output for verification
+
+📄 STUDY_GUIDE.md
+   → Three-layer architecture diagram
+   → Interface-ownership diagram
+   → Testing-with-fakes diagram
+   → Error-translation-across-layers diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax for all three layers
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why in-memory storage instead of Level 29's SQL setup?
+A: This level is about the ARCHITECTURE, not the storage technology.
+   In-memory storage keeps every exercise offline and fast, and proves
+   the whole point: the Repository interface could be backed by SQL,
+   memory, or anything else, and the Service/Handler would never know.
+
+Q: Isn't this overkill for a simple CRUD app?
+A: For a truly tiny program, yes - see "When This Is Overkill" in
+   README.md. It earns its keep once business logic, testability, or
+   swappable storage genuinely matter.
+
+Q: Where does the Repository interface live?
+A: In the Service's package (or wherever it's consumed) - Level 15's
+   Rule 3. The repository package just exports concrete types.
+
+Q: How is this different from Level 31 (Dependency Injection)?
+A: It isn't fundamentally different - wiring everything by hand in
+   main() IS dependency injection. Level 31 names the pattern and shows
+   how to scale it past three layers.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 30?
+================================================================================
+
+Level 31: Dependency Injection
+  - Naming and scaling the wiring pattern from this level
+  - Managing a dependency graph as it grows past three layers
+  - Constructor injection, wiring functions, and where DI frameworks fit
+
+You've already been doing dependency injection by hand in this level's
+main() functions - Level 31 gives it a name and grows it up!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Repository-Service-Handler is how real production Go services are
+structured. Master it now and every future level builds on solid ground.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 31 - Dependency Injection
+Estimated completion: 6-7 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- Repository (data), Service (rules), Handler (HTTP) - one job each
+- Handler -> Service -> Repository interface - dependencies flow ONE way
+- Define interfaces where they're used, not where they're implemented
+- Fakes at every boundary make every layer testable in isolation
+- Only the Handler knows what an HTTP status code is
+
+Let's go! 🎉
+
+================================================================================

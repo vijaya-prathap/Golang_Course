@@ -1,0 +1,430 @@
+================================================================================
+                    LEVEL 5: CONDITIONS (IF/ELSE/SWITCH)
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 5! You've mastered operators and expressions (Level 4). Now
+it's time to learn CONDITIONS - how your programs actually make decisions
+using the boolean expressions you can now build.
+
+A CONDITION is a boolean expression Go evaluates to decide which code runs.
+if, else, and switch are Go's tools for branching based on conditions.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ if, if/else, and if/else if chains
+✅ The if-with-short-init pattern (and the comma-ok idiom)
+✅ switch statements, including multi-value cases
+✅ Conditionless switch as a clean if/else-if replacement
+✅ fallthrough, and why Go's switch doesn't fall through by default
+✅ How to flatten nested conditions with early returns
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 5 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐ (Intermediate)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 4 (Operators & Expressions)
+  ✅ Comfortable with comparison operators (==, !=, <, >, <=, >=)
+  ✅ Comfortable with logical operators (&&, ||, !)
+  ✅ Understand operator precedence and short-circuit evaluation
+
+If you haven't done Level 4, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - if, else, else-if (1.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-3 - 50 min
+
+Day 2 - Short Init & switch Basics (2 hours)
+  → Read README.md Sections 4-6 - 30 min
+  → Complete Exercises 4-6 - 1.5 hours
+
+Day 3 - Conditionless switch & fallthrough (1.5 hours)
+  → Read README.md Sections 7-8 - 20 min
+  → Complete Exercises 7-8 - 1 hour 10 min
+
+Day 4 - Nesting & Real-World Practice (1.5 hours)
+  → Complete Exercises 9-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review the if-vs-switch decision guide
+  → Ask: "Do I order thresholds correctly without thinking?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Condition?
+  → A boolean expression Go checks to decide what runs
+  → Built from the comparison/logical operators you learned in Level 4
+  → if and switch are the two ways Go branches on conditions
+
+Why Conditions Matter:
+  → Every real program makes decisions: valid or invalid input, which
+    branch of logic to run, which error to report
+  → Mastering if/switch is mastering control flow itself
+
+================================================================================
+                    THE if STATEMENT
+================================================================================
+
+The most basic form:
+
+  if condition {
+      // runs only if condition is true
+  }
+
+KEY RULE: The opening brace MUST be on the same line as if!
+
+  ✅ RIGHT                    ❌ WRONG (compile error)
+  if age >= 18 {              if age >= 18
+      ...                     {
+  }                               ...
+                              }
+
+================================================================================
+                    if/else AND else if CHAINS
+================================================================================
+
+  if score >= 90 {
+      grade = "A"
+  } else if score >= 80 {
+      grade = "B"
+  } else {
+      grade = "F"
+  }
+
+KEY RULE: Go checks conditions top-to-bottom and runs the FIRST true one.
+The rest are never even checked.
+
+THIS MEANS: order matters for overlapping ranges!
+
+  ✅ RIGHT - highest threshold first
+  if score >= 90 { "A" } else if score >= 70 { "C" }
+
+  ❌ WRONG - score=95 wrongly gets "C" because it's checked first
+  if score >= 70 { "C" } else if score >= 90 { "A" }
+
+================================================================================
+                 THE SHORT-INIT PATTERN
+================================================================================
+
+if can run a short statement BEFORE the condition. The variable it creates
+is scoped ONLY to that if/else block.
+
+  if value, err := strconv.Atoi(s); err == nil {
+      // use value here
+  } else {
+      // handle err here
+  }
+  // value and err do NOT exist here!
+
+This is used everywhere in idiomatic Go - especially for:
+  - Error checking:     if err := doThing(); err != nil { ... }
+  - Map lookups:        if v, ok := myMap[key]; ok { ... }
+
+================================================================================
+                      THE switch STATEMENT
+================================================================================
+
+switch compares one value against many cases:
+
+  switch day {
+  case "Saturday", "Sunday":
+      fmt.Println("Weekend")
+  default:
+      fmt.Println("Weekday")
+  }
+
+IMPORTANT: Unlike C or Java, Go's switch does NOT fall through by default!
+Each case automatically stops after its own block runs.
+
+A CONDITIONLESS switch works like a clean if/else-if chain:
+
+  switch {
+  case score >= 90:
+      grade = "A"
+  case score >= 80:
+      grade = "B"
+  default:
+      grade = "F"
+  }
+
+================================================================================
+                          fallthrough
+================================================================================
+
+If you actually WANT the next case to run too, say so explicitly:
+
+  switch n {
+  case 1:
+      fmt.Println("one")
+      fallthrough      // forces case 2's body to run next
+  case 2:
+      fmt.Println("two")
+  }
+
+fallthrough is rare in idiomatic Go - most switches read better without it.
+
+================================================================================
+                 AVOIDING DEEP NESTING
+================================================================================
+
+Deeply nested if statements get hard to follow:
+
+  ❌ NESTED
+  if active {
+      if verified {
+          if hasPermission {
+              return "OK"
+          }
+      }
+  }
+
+  ✅ FLAT (early returns / guard clauses)
+  if !active { return "Inactive" }
+  if !verified { return "Not verified" }
+  if !hasPermission { return "No permission" }
+  return "OK"
+
+Both versions do the same thing, but the flat version is far easier to scan.
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import "fmt"
+
+func main() {
+    age := 20
+
+    if age >= 18 {
+        fmt.Println("Adult")
+    } else {
+        fmt.Println("Minor")
+    }
+
+    switch {
+    case age < 13:
+        fmt.Println("Child")
+    case age < 20:
+        fmt.Println("Teen")
+    default:
+        fmt.Println("Adult")
+    }
+}
+
+Output:
+  Adult
+  Adult
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. IF / ELSE
+   if cond { } else if cond2 { } else { }
+   First true condition wins. Order matters for overlapping ranges.
+
+2. SHORT INIT
+   if x := f(); x > 0 { }
+   x is scoped ONLY to the if/else.
+
+3. SWITCH
+   switch value { case a, b: ... default: ... }
+   No automatic fallthrough - each case auto-breaks.
+
+4. CONDITIONLESS SWITCH
+   switch { case cond1: ... }
+   A cleaner alternative to long if/else-if chains.
+
+5. FALLTHROUGH
+   Explicitly runs the next case's body. Rarely needed.
+
+6. FLATTENING
+   Prefer early returns over deeply nested if statements.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Checking the lower threshold first
+  if score >= 70 { "C" } else if score >= 90 { "A" }
+
+✅ RIGHT: Check the highest threshold first
+  if score >= 90 { "A" } else if score >= 70 { "C" }
+
+---
+
+❌ WRONG: Expecting Go's switch to fall through automatically
+  switch 2 {
+  case 2: fmt.Println("two")
+  case 3: fmt.Println("three")   // does NOT run for n=2
+  }
+
+✅ RIGHT: Use fallthrough if you want that behavior
+
+---
+
+❌ WRONG: Brace on its own line
+  if x > 5
+  {
+  }
+
+✅ RIGHT: Brace on the same line
+  if x > 5 {
+  }
+
+---
+
+❌ WRONG: Deep nesting
+  if a { if b { if c { doWork() } } }
+
+✅ RIGHT: Early returns
+  if !a { return }
+  if !b { return }
+  if !c { return }
+  doWork()
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the if-vs-switch decision guide
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → if/else, switch, fallthrough, and nesting explained with examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → if-vs-switch decision guide
+   → Short-init pattern breakdown
+   → fallthrough flow diagrams
+   → Nested-vs-flattened code comparisons
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: When should I use if vs switch?
+A: if/else for one or two conditions. switch when comparing one value
+   against many cases, or a conditionless switch for many independent
+   conditions/ranges.
+
+Q: Does Go's switch fall through like C or Java?
+A: No. Each case auto-breaks. Use fallthrough to explicitly opt in.
+
+Q: What's the short-init form actually for?
+A: Scoping a helper variable (an error, a lookup result) so it only
+   exists where it's needed.
+
+Q: Why does order matter in if/else-if chains?
+A: Go runs the FIRST true condition. For overlapping ranges, check the
+   most specific (usually highest) condition first.
+
+Q: Is nesting bad?
+A: Not always, but two or three levels deep it usually gets harder to
+   read. Prefer early returns when every branch would exit anyway.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 5?
+================================================================================
+
+Level 6: Loops
+  - for loops (Go's only loop keyword)
+  - while-style and infinite loops
+  - break and continue
+  - Looping over arrays, slices, and maps
+
+You'll combine loops with everything from Levels 4 and 5 constantly!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Conditions are how your programs actually decide what to do. Master them
+now and every future level builds directly on this.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 6 - Loops
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐ (Intermediate)
+
+Remember:
+- Opening brace goes on the same line as if/else/switch
+- First true condition wins - order matters for overlapping ranges
+- Go's switch does NOT fall through by default
+- Short-init variables are scoped to their if/switch block only
+- Prefer early returns over deep nesting
+
+Let's go! 🎉
+
+================================================================================

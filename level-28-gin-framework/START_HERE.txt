@@ -1,0 +1,396 @@
+================================================================================
+                      LEVEL 28: GIN FRAMEWORK
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 28! You've mastered Level 27 (HTTP & REST APIs) - routing,
+middleware, and testing with nothing but the Go standard library. Now it's
+time to meet Gin (github.com/gin-gonic/gin), the most widely used web
+framework in the Go ecosystem.
+
+================================================================================
+                 ⚠️  THIS LEVEL REQUIRES INTERNET ACCESS  ⚠️
+================================================================================
+
+Every other level in this course (0 through 27, and 29+) works 100% OFFLINE -
+nothing but the Go standard library. Gin is different: it's a real
+third-party package, so this level needs internet access the FIRST time you
+set up each exercise, to run:
+
+    go get github.com/gin-gonic/gin@v1.12.0
+
+That downloads Gin (and its own dependencies) from the Go module proxy. Once
+downloaded, Go caches it on your machine ($GOPATH/pkg/mod), so you won't need
+the network again for the same version. Every exercise in this level was
+actually written, run, and had its output captured against Gin v1.12.0 - real
+`go run` / `go test` output, nothing hand-computed. If you're offline right
+now, come back to this level once you have a connection.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why a framework exists on top of net/http, and what Gin specifically adds
+✅ gin.Default() vs gin.New()
+✅ Routing with path parameters, wildcards, and route groups
+✅ Reading query params, path params, and validated JSON bodies
+✅ Writing JSON, string, and status-only responses
+✅ Writing and attaching custom middleware, global and scoped
+✅ How Gin's built-in Recovery() middleware turns panics into clean responses
+✅ Testing a Gin router with httptest
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 28 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 27 (HTTP & REST APIs)
+  ✅ Comfortable with net/http, ServeMux routing, and middleware as
+     function-wrapping
+  ✅ Comfortable with httptest.NewRequest / httptest.NewRecorder
+  ✅ Comfortable with panic/recover (Level 16) and testing (Level 26)
+  ✅ Internet access, at least for the first `go get` per exercise
+
+If you haven't done Level 27, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Why Gin, Setup, and Routing (2.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 40 min
+  → Complete Exercises 1-3 - 1 hour 40 min
+
+Day 2 - Input, Output & Middleware (2.5 hours)
+  → Read README.md Sections 4-6 - 35 min
+  → Complete Exercises 4-6 - 1 hour 55 min
+
+Day 3 - Recovery & a Real Resource (2 hours)
+  → Read README.md Sections 7-8 - 20 min
+  → Complete Exercises 7-8 - 1 hour 40 min
+
+Day 4 - Testing & Comprehensive Practice (2 hours)
+  → Read README.md Sections 9-10 - 20 min
+  → Complete Exercises 9-10 - 1 hour 40 min
+
+Day 5 - Consolidate (1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Does Gin Add Over net/http?
+  → Faster routing via a radix tree (still correct at thousands of routes)
+  → Built-in JSON binding + validation via struct tags
+  → Composable middleware, chained with c.Next()
+  → Much less boilerplate per handler
+
+What Gin Does NOT Change:
+  → *gin.Context wraps the same *http.Request / http.ResponseWriter you
+    already know from Level 27
+  → HTTP semantics (status codes, methods, headers) are unchanged
+  → Testing still uses httptest.NewRequest + httptest.NewRecorder
+
+================================================================================
+                 BEFORE / AFTER: net/http vs GIN
+================================================================================
+
+  // net/http (Level 27 style)
+  func getUserHandler(w http.ResponseWriter, r *http.Request) {
+      id := r.PathValue("id")
+      w.Header().Set("Content-Type", "application/json")
+      json.NewEncoder(w).Encode(map[string]string{"user_id": id})
+  }
+  mux.HandleFunc("GET /users/{id}", getUserHandler)
+
+  // Gin
+  func getUserHandler(c *gin.Context) {
+      id := c.Param("id")
+      c.JSON(http.StatusOK, gin.H{"user_id": id})
+  }
+  router.GET("/users/:id", getUserHandler)
+
+================================================================================
+                 SETUP: gin.Default() vs gin.New()
+================================================================================
+
+  router := gin.Default() // gin.New() + Logger() + Recovery() middleware
+  router := gin.New()     // a bare engine - no middleware attached
+
+gin.Default() is not magic - it's just gin.New() with two Use() calls
+already made for you. Exercise 1 proves this by rebuilding it by hand.
+
+================================================================================
+                    ROUTING & ROUTE GROUPS
+================================================================================
+
+  router.GET("/users/:id", handler)          // path parameter -> c.Param("id")
+  router.GET("/files/*filepath", handler)    // wildcard catch-all
+
+  v1 := router.Group("/api/v1")
+  v1.GET("/users", listUsersV1)              // -> /api/v1/users
+
+================================================================================
+                 JSON BINDING WITH VALIDATION
+================================================================================
+
+  type CreateUserInput struct {
+      Name  string `json:"name" binding:"required"`
+      Email string `json:"email" binding:"required,email"`
+  }
+
+  var input CreateUserInput
+  if err := c.ShouldBindJSON(&input); err != nil {
+      c.JSON(400, gin.H{"error": err.Error()})
+      return
+  }
+
+KEY GOTCHA - No binding tag means no validation:
+  A field with only a json tag silently accepts the zero value if the
+  client omits it. Tag every field that must be present.
+
+================================================================================
+                       MIDDLEWARE
+================================================================================
+
+  func myMiddleware() gin.HandlerFunc {
+      return func(c *gin.Context) {
+          // ...before...
+          c.Next()   // hands off to the next middleware/handler
+          // ...after...
+      }
+  }
+
+  router.Use(myMiddleware())                   // global
+  router.GET("/x", myMiddleware(), handler)     // per-route
+  group.Use(myMiddleware())                     // per-group
+
+KEY GOTCHA - Forgetting c.Next() means nothing downstream ever runs.
+KEY GOTCHA - To stop the chain, call c.AbortWithStatusJSON(...), not just
+  a plain return - a bare return doesn't tell Gin to stop, and the next
+  handler still runs.
+
+================================================================================
+                 BUILT-IN RECOVERY MIDDLEWARE
+================================================================================
+
+Level 16 taught you that an unrecovered panic crashes the whole program
+(exit status 2). gin.Default()'s Recovery() middleware catches a panic
+inside any handler and turns it into a clean 500 response instead - the
+server keeps running and serves the very next request normally.
+
+================================================================================
+                      TESTING GIN HANDLERS
+================================================================================
+
+  gin.SetMode(gin.TestMode)
+  router := SetupRouter()
+
+  req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+  w := httptest.NewRecorder()
+  router.ServeHTTP(w, req)
+
+  // assert on w.Code and w.Body.String()
+
+This is the exact same httptest pattern Level 26 previewed and Level 27
+used in full - *gin.Engine is an http.Handler, so nothing new to learn here.
+
+================================================================================
+                    KEY CONCEPTS SUMMARY
+================================================================================
+
+1. SETUP
+   gin.Default() = gin.New() + Logger() + Recovery()
+
+2. ROUTING
+   router.GET/POST/PUT/DELETE, :param, *wildcard, router.Group(prefix)
+
+3. INPUT
+   c.Param, c.Query/c.DefaultQuery, c.ShouldBindJSON + binding tags
+
+4. OUTPUT
+   c.JSON, c.String, c.Status
+
+5. MIDDLEWARE
+   gin.HandlerFunc + c.Next() to continue, c.Abort... to stop
+
+6. RECOVERY
+   gin.Default()'s Recovery() turns a panic into a clean 500
+
+7. TESTING
+   httptest.NewRequest + httptest.NewRecorder + router.ServeHTTP
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: A struct field with no binding tag
+  type Input struct { Age int `json:"age"` }   // missing age silently -> 0
+
+✅ RIGHT
+  type Input struct { Age int `json:"age" binding:"required"` }
+
+---
+
+❌ WRONG: Binding the same request body twice
+  c.ShouldBindJSON(&a)
+  c.ShouldBindJSON(&b)   // body already drained - fails or comes back empty
+
+✅ RIGHT: Bind once into one struct
+
+---
+
+❌ WRONG: Ignoring the error from ShouldBindJSON
+  c.ShouldBindJSON(&input)
+  save(input)   // input may be invalid and you'll never know
+
+✅ RIGHT: Always check the error before using the bound value
+
+---
+
+❌ WRONG: Attaching group middleware after routes are already registered
+  v1.GET("/books", listBooks)
+  v1.Use(authMiddleware())   // too late for /books
+
+✅ RIGHT: Call Use() before registering routes that need it
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Confirm Internet Access
+  Make sure you can reach the Go module proxy (proxy.golang.org)
+
+Step 2: Read
+  Open README.md and read Sections 1-6 (about 45 minutes)
+
+Step 3: Look at Diagrams
+  Open STUDY_GUIDE.md and study the middleware chain flow diagram
+
+Step 4: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 5: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 6: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview, the internet-access requirement, and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Setup, routing, input/output, middleware, recovery, testing, Gin vs
+     stdlib - all explained with real, verified examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands (including go get)
+   → Real, captured expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → Gin vs net/http comparison table
+   → gin.Context method reference
+   → Middleware chain flow diagram
+   → Binding/validation tag reference
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does this level need internet access?
+A: Gin is a real third-party package, not part of the standard library.
+   `go get` fetches it from the Go module proxy the first time; after that
+   it's cached locally and you're offline-safe for that version.
+
+Q: Is gin.Default() doing something I can't replicate myself?
+A: No - it's gin.New() with gin.Logger() and gin.Recovery() attached via
+   Use(). Exercise 1 rebuilds it by hand to prove it.
+
+Q: What's the difference between BindJSON and ShouldBindJSON?
+A: BindJSON auto-writes a 400 response on failure. ShouldBindJSON just
+   returns the error so you control the response format - prefer this.
+
+Q: Does Gin replace what I learned about net/http in Level 27?
+A: No - *gin.Context wraps the same *http.Request / http.ResponseWriter.
+   Everything about HTTP semantics and testing with httptest still applies.
+
+Q: Should I use Gin for every project from now on?
+A: No. Gin earns its keep on larger APIs with lots of routes and
+   validation needs. Plain net/http is often better for small services or
+   when you want zero non-standard-library dependencies.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 28?
+================================================================================
+
+Level 29: Database/SQL
+  - database/sql, connection pools, and drivers
+  - Queries, scanning rows into structs, prepared statements
+  - Wiring real, persistent storage underneath the Gin API you just built
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Confirm you have internet access
+2. Close this file
+3. Open README.md
+4. Read Sections 1-6
+5. Come back and start Exercise 1
+
+Gin turns everything you already know about HTTP from Level 27 into a
+faster, less repetitive way to build real APIs. Master it now and every
+future backend project gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 29 - Database/SQL
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- This level requires internet access - every other level does not
+- gin.Default() = gin.New() + Logger() + Recovery(), nothing more
+- A field with no binding tag is never validated - tag everything required
+- Forgetting c.Next() means nothing downstream ever runs
+- Recovery() turns a panic into a clean 500, not a crash
+
+Let's go! 🎉
+
+================================================================================

@@ -1,0 +1,397 @@
+================================================================================
+                          LEVEL 36: KUBERNETES
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 36! You've mastered Docker (Level 35) - packaging a single
+Go application into a container image. Now it's time to learn KUBERNETES -
+how to run that container reliably across a whole cluster of machines
+instead of just one.
+
+⚠️  IMPORTANT ENVIRONMENT NOTE
+--------------------------------------------------------------------------------
+No live Kubernetes cluster (and no working kubectl-to-cluster connection) was
+available in the environment that authored this level. Every manifest here is
+written correctly per the current stable Kubernetes API and was checked for
+well-formed YAML syntax, but - unlike every Go-code level in this course -
+none of it was verified by actually applying it to a running cluster. When
+you work through this level with your own cluster (even a free local one
+like kind or minikube), trust your own real kubectl output over anything
+shown in these files.
+--------------------------------------------------------------------------------
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why Kubernetes exists - orchestrating containers across many machines
+✅ Pod, Deployment, and Service - the three core objects, and how they relate
+✅ Writing Deployment and Service manifests for a Go application
+✅ ConfigMaps and Secrets for cluster-native configuration
+✅ Readiness and liveness probes
+✅ Resource requests and limits
+✅ Core kubectl commands: apply, get, describe, logs, delete
+✅ Rolling updates and kubectl rollout undo
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 36 Duration: 4-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 2.5-3.5 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 35 (Docker)
+  ✅ Comfortable building a Docker image and understanding multi-stage builds
+  ✅ Familiarity with docker-compose for running containers together
+  ✅ From Level 27: a Go HTTP server with request handlers
+  ✅ From Level 34: externalizing configuration via environment variables
+
+If you haven't done Level 35, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Why Kubernetes & Core Objects (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - Services & Configuration (2 hours)
+  → Read README.md Sections 3-5 - 35 min
+  → Complete Exercises 3-6 - 1.5 hours
+
+Day 3 - Health & Resources (1.5 hours)
+  → Read README.md Sections 6-7 - 20 min
+  → Complete Exercises 7-8 - 1 hour 10 min
+
+Day 4 - Operations & Real-World Practice (2 hours)
+  → Read README.md Sections 8-9 - 25 min
+  → Complete Exercises 9-10 - 1.5 hours
+
+Day 5 - Consolidate (1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is Kubernetes?
+  → A system that runs your containers across a cluster of machines,
+    restarting them when they crash, scaling them up/down, rolling out
+    updates without downtime, and load-balancing traffic across replicas
+  → You describe DESIRED STATE in YAML; Kubernetes continuously works to
+    make reality match it
+
+Why Kubernetes Matters:
+  → docker-compose (Level 35) is enough for one machine you watch by hand
+  → Real production systems span many machines, need automatic healing,
+    need to scale under load, and need zero-downtime deployments -
+    Kubernetes is the standard answer to all four at once
+
+================================================================================
+                 THE THREE CORE OBJECTS
+================================================================================
+
+1. POD - the smallest deployable unit (one or more containers)
+
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: books-api-pod
+  spec:
+    containers:
+      - name: books-api
+        image: books-api:1.0.0
+        ports:
+          - containerPort: 8080
+
+2. DEPLOYMENT - manages N identical Pod replicas, self-heals, handles rollouts
+
+  apiVersion: apps/v1
+  kind: Deployment
+  spec:
+    replicas: 3
+    selector: { matchLabels: { app: books-api } }
+    template:
+      metadata: { labels: { app: books-api } }
+      spec:
+        containers:
+          - name: books-api
+            image: books-api:1.0.0
+
+3. SERVICE - a stable network endpoint load-balancing across matching Pods
+
+  apiVersion: v1
+  kind: Service
+  spec:
+    type: ClusterIP
+    selector: { app: books-api }
+    ports:
+      - port: 80
+        targetPort: 8080
+
+================================================================================
+                 CONFIGMAPS AND SECRETS
+================================================================================
+
+Externalize configuration instead of baking it into the image (bridges
+Level 34):
+
+  ConfigMap  →  non-sensitive values (LOG_LEVEL, feature flags, ...)
+  Secret     →  sensitive values (passwords, API keys, ...) - base64 at
+                rest, NOT encrypted by default
+
+Both get injected into a Pod as environment variables via
+configMapKeyRef / secretKeyRef, and the Go program reads them with the
+same os.Getenv() calls from Level 34 - it never knows where the value
+came from.
+
+================================================================================
+                 READINESS AND LIVENESS PROBES
+================================================================================
+
+  readinessProbe  → "Can this Pod take traffic right now?"
+                     fails → removed from the Service, NOT restarted
+  livenessProbe   → "Is this Pod still alive?"
+                     fails → container killed and restarted
+
+  readinessProbe:
+    httpGet: { path: /ready, port: 8080 }
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+This bridges Level 27 - your Go HTTP server needs a real health endpoint
+for Kubernetes to check.
+
+================================================================================
+                 RESOURCE REQUESTS AND LIMITS
+================================================================================
+
+  requests → guaranteed minimum; used by the scheduler to place the Pod
+  limits   → hard cap; CPU is throttled, memory gets the Pod OOMKilled
+
+  resources:
+    requests: { cpu: "100m", memory: "64Mi" }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+Always set both - an unlimited Pod can starve every other Pod on its node.
+
+================================================================================
+                    kubectl BASICS
+================================================================================
+
+  kubectl apply -f app.yaml     → create/update (DECLARATIVE, safe to re-run)
+  kubectl get pods              → list objects
+  kubectl describe pod <name>   → full detail + events (debug here first)
+  kubectl logs <pod>            → container stdout/stderr
+  kubectl delete -f app.yaml    → remove everything in the file
+
+apply is declarative: it makes the cluster match the file, every time you
+run it - it is NOT a one-off imperative action like `kubectl create`.
+
+================================================================================
+                    ROLLING UPDATES AND ROLLBACKS
+================================================================================
+
+Changing a Deployment's image and re-applying it replaces Pods gradually,
+never dropping below full serving capacity (as long as probes are set up
+correctly):
+
+  kubectl set image deployment/books-api books-api=books-api:1.1.0
+  kubectl rollout status deployment/books-api
+  kubectl rollout undo deployment/books-api      ← revert if it goes wrong
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. CORE OBJECTS
+   Pod (containers) → Deployment (N replicas, self-heals) → Service (stable address)
+
+2. CONFIGURATION
+   ConfigMap (non-sensitive) / Secret (sensitive) → injected as env vars
+
+3. HEALTH
+   readinessProbe (traffic-ready?) / livenessProbe (still alive?)
+
+4. RESOURCES
+   requests (guaranteed, scheduling) / limits (hard cap, stability)
+
+5. OPERATIONS
+   kubectl apply is declarative; rollouts replace Pods gradually;
+   kubectl rollout undo reverts a bad release
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: No resource limits
+  resources: {}   // one leaking Pod can starve its whole node
+
+✅ RIGHT: Always set requests AND limits
+
+---
+
+❌ WRONG: Missing readiness probe
+  containers: [{ name: books-api, image: books-api:1.0.0 }]
+  // traffic hits the Pod before it's actually ready
+
+✅ RIGHT: Add a readinessProbe backed by a real health endpoint
+
+---
+
+❌ WRONG: Hardcoding config that should be externalized
+  env: [{ name: LOG_LEVEL, value: "info" }]
+
+✅ RIGHT: Reference a ConfigMap/Secret key instead
+
+---
+
+❌ WRONG: Treating kubectl apply as a one-off imperative command
+  (confusing it with kubectl create, which fails on re-run)
+
+✅ RIGHT: apply is declarative and safe to run repeatedly
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 45 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the Pod/Deployment/Service diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Core objects, manifests, ConfigMaps/Secrets, probes, resources,
+     kubectl, rolling updates - all explained with examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready YAML manifests
+   → Illustrative outputs (clearly labeled as unverified against a live
+     cluster - see the banner at the top of the file)
+
+📄 STUDY_GUIDE.md
+   → Pod/Deployment/Service relationship diagram
+   → ConfigMap/Secret injection diagram
+   → Readiness vs liveness comparison table
+   → Service type comparison table
+   → kubectl command reference
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential manifest syntax and kubectl commands
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Do I need a real cluster to do this level?
+A: To truly verify anything, yes - a free local cluster (kind or minikube)
+   is enough. This course's authoring environment didn't have one, which
+   is why exercise outputs are labeled illustrative rather than verified.
+
+Q: Why use a Deployment instead of a bare Pod?
+A: A bare Pod that crashes stays dead. A Deployment supervises its Pods
+   and replaces any that disappear, plus gives you scaling and rollouts.
+
+Q: ClusterIP vs NodePort vs LoadBalancer - which do I use?
+A: ClusterIP for internal traffic (the default). NodePort for simple
+   local/demo external access. LoadBalancer for real production external
+   access on a cloud platform.
+
+Q: Are Secrets actually secure?
+A: Not by themselves - they're base64-encoded, not encrypted, by default.
+   Real protection comes from cluster RBAC, encryption-at-rest, and never
+   committing real secret values to files you check into version control.
+
+Q: What's the difference between kubectl apply and kubectl create?
+A: apply is declarative and safe to re-run; create is a one-off imperative
+   action that fails if the object already exists.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 36?
+================================================================================
+
+Level 37: CI/CD
+  - Automating build → test → containerize → deploy
+  - Wiring Level 35's Docker image and this level's manifests into a
+    pipeline that runs on every commit
+  - Continuous integration and continuous delivery concepts
+
+You'll use everything from this level every time that pipeline deploys!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Kubernetes is how real production systems run your code reliably at scale.
+Master the fundamentals now and every future level involving deployment
+gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 37 - CI/CD
+Estimated completion: 4-6 hours
+Difficulty: ⭐⭐⭐ (Advanced)
+
+Remember:
+- Deployment keeps N Pods alive and self-heals; Service gives them one
+  stable address
+- ConfigMaps/Secrets externalize configuration instead of baking it into
+  the image
+- Both readiness AND liveness probes matter, and they answer different
+  questions
+- kubectl apply is declarative - safe to run again and again
+- No live cluster verified any of this course's manifests - verify with
+  your own kubectl against a real cluster
+
+Let's go! 🎉
+
+================================================================================

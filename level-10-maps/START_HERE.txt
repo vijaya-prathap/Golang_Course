@@ -1,0 +1,427 @@
+================================================================================
+                          LEVEL 10: MAPS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 10! You've mastered arrays (Level 7), slices (Level 8), and
+strings & runes (Level 9). Now it's time to go deep on MAPS - Go's built-in
+hash table type for key-value pairs.
+
+You've already brushed up against maps a few times:
+  - Level 3 introduced map literals
+  - Level 5 used the comma-ok idiom in an if statement
+  - Level 6 ranged over maps, sorted keys, and used a map as a counter
+
+This level builds on all of that and goes much further.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What a map is and how it works as a hash table
+✅ The three ways to create a map (literal, make, and the dangerous nil zero value)
+✅ Why reading a nil map is safe but writing to one panics
+✅ Full CRUD operations: create, read, update, delete
+✅ The comma-ok idiom, in depth - absent key vs. zero-valued key
+✅ Which types are valid map keys, and why slices/maps/funcs aren't
+✅ Building sets with map[T]bool and the idiomatic map[T]struct{}
+✅ Why map values aren't addressable, and how to work around it
+✅ Safely reading and writing nested maps
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 10 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 9 (Strings & Runes)
+  ✅ Comfortable with slices and range (Level 8, Level 6)
+  ✅ Basic familiarity with maps and comma-ok (Levels 3, 5, 6)
+
+If you haven't done Level 9, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Creating Maps & the nil Gotcha (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - CRUD & comma-ok (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - Keys, Sets & the Struct Gotcha (2 hours)
+  → Read README.md Sections 6-8 - 30 min
+  → Complete Exercises 5-7 - 1.5 hours
+
+Day 4 - Nested Maps & Real-World Practice (1.5 hours)
+  → Complete Exercises 8-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review the nil-map asymmetry and comma-ok until they're automatic
+  → Ask: "Can I reproduce the exact panic and compile error messages?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Map?
+  → An unordered collection of key-value pairs
+  → Implemented internally as a hash table - fast lookup, insert, delete
+  → No guaranteed order (you already saw this in Level 6)
+
+Why Maps Matter:
+  → Almost every real program needs fast lookups by some kind of key -
+    counting words, indexing records, caching results, tracking sets
+  → Maps are Go's single built-in tool for all of that
+
+================================================================================
+                 THREE WAYS TO CREATE A MAP
+================================================================================
+
+1. MAP LITERAL (ready immediately)
+
+  ages := map[string]int{"Alice": 30, "Bob": 25}
+
+2. make() (empty, ready immediately)
+
+  scores := make(map[string]int)
+  scores["Charlie"] = 88
+
+3. var (THE DANGEROUS ONE - gives you nil!)
+
+  var scores map[string]int
+  fmt.Println(scores == nil) // true
+
+A nil map looks empty and reads safely, but you CANNOT write to it yet.
+
+================================================================================
+                 THE nil MAP GOTCHA (most important rule!)
+================================================================================
+
+  READING from a nil map is completely safe:
+
+    var m map[string]int
+    value := m["anything"]   // 0, no panic
+
+  WRITING to a nil map PANICS:
+
+    var m map[string]int
+    m["key"] = 1             // panic: assignment to entry in nil map
+
+  This is Go's real, exact panic message - verified by actually running it:
+
+    panic: assignment to entry in nil map
+
+    goroutine 1 [running]:
+    main.main()
+            /path/to/main.go:5 +0x34
+    exit status 2
+
+  THE FIX: always initialize before writing.
+
+    m := make(map[string]int)   // or m := map[string]int{}
+    m["key"] = 1                 // fine now
+
+================================================================================
+                 THE comma-ok IDIOM, IN DEPTH
+================================================================================
+
+A bare index can't tell "absent" from "present but zero":
+
+  stock := map[string]int{"bananas": 0}
+  stock["bananas"]   // 0 - present, genuinely zero
+  stock["grapes"]    // 0 - absent! Same output, totally different meaning!
+
+comma-ok tells you the truth:
+
+  qty, ok := stock["bananas"]  // qty=0,  ok=true  -> present
+  qty, ok  = stock["grapes"]   // qty=0,  ok=false -> absent
+
+  if v, ok := m[k]; ok {
+      fmt.Println("found:", v)
+  }
+
+Use comma-ok any time zero is a value your program might legitimately store.
+
+================================================================================
+                 MAP KEY REQUIREMENTS
+================================================================================
+
+Map keys must be COMPARABLE (usable with == and !=):
+
+  VALID:   int, string, bool, float64, arrays, structs (comparable fields),
+           pointers
+  INVALID: slices, maps, functions
+
+Trying an invalid key doesn't even compile. Verified, real compiler output:
+
+  bad := map[[]int]string{}
+  // ./main.go:6:13: invalid map key type []int
+
+================================================================================
+                 MAPS AS SETS
+================================================================================
+
+Go has no built-in Set type, but a map fakes one perfectly:
+
+  // map[T]bool - simple, costs 1 byte per entry
+  set := map[string]bool{"a": true}
+
+  // map[T]struct{} - the idiomatic, ZERO-byte-per-entry set
+  set := map[string]struct{}{"a": {}}
+  _, inSet := set["a"]
+
+struct{} is the empty struct - it holds no data and occupies zero bytes,
+verified with unsafe.Sizeof(struct{}{}) == 0.
+
+================================================================================
+                 MAPS OF STRUCTS: THE ADDRESSABILITY GOTCHA
+================================================================================
+
+  type Player struct{ Score int }
+  players := map[string]Player{"a": {}}
+
+  players["a"].Score = 10
+  // DOES NOT COMPILE! Verified, real compiler output:
+  // ./main.go:15:2: cannot assign to struct field players["a"].Score in map
+
+Why: map values aren't addressable - players["a"] behaves like a copy, and Go
+won't let you mutate a field of something it can't guarantee is the real
+stored value.
+
+  FIX 1: read, modify, reassign the whole struct
+    p := players["a"]; p.Score = 10; players["a"] = p
+
+  FIX 2: use a map of pointers instead
+    ptrs := map[string]*Player{"a": {}}
+    ptrs["a"].Score = 10   // compiles fine!
+
+================================================================================
+                 NESTED MAPS
+================================================================================
+
+  m := make(map[string]map[string]int)
+
+  m["missing"]["x"]        // safe read: 0, no panic (inner map is nil)
+  m["a"]["b"] = 1           // PANIC if m["a"] was never created!
+
+  // The safe pattern: guard the inner map first
+  if m["a"] == nil {
+      m["a"] = make(map[string]int)
+  }
+  m["a"]["b"] = 1           // fine now
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THREE WAYS TO CREATE
+   literal, make(), var (nil - dangerous!)
+
+2. THE nil ASYMMETRY
+   reads are always safe; writes panic on a nil map
+
+3. CRUD
+   m[k]=v (create/update), v:=m[k] (read), delete(m,k) (always safe)
+
+4. comma-ok
+   v, ok := m[k] - the only reliable way to check presence
+
+5. KEYS
+   must be comparable; slices/maps/funcs fail to compile
+
+6. SETS
+   map[T]struct{} - zero memory, no ambiguous state
+
+7. STRUCT GOTCHA
+   m[k].Field = x doesn't compile for map[K]StructType; use pointers or
+   reassign the whole struct
+
+8. NESTED MAPS
+   guard the inner map before writing; reading is always safe
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Writing to a nil map
+  var m map[string]int
+  m["key"] = 1   // panic!
+
+✅ RIGHT
+  m := make(map[string]int)
+
+---
+
+❌ WRONG: Bare index to check existence
+  if m["key"] != 0 { }   // can't tell absent from stored-zero
+
+✅ RIGHT
+  if _, ok := m["key"]; ok { }
+
+---
+
+❌ WRONG: Slice as a map key
+  bad := map[[]int]string{}   // invalid map key type []int
+
+✅ RIGHT: use a fixed-size array
+  ok := map[[3]int]string{}
+
+---
+
+❌ WRONG: Struct field through a map
+  players["a"].Score = 10   // cannot assign to struct field ... in map
+
+✅ RIGHT: reassign the whole struct, or use a map of pointers
+
+---
+
+❌ WRONG: Writing through an uninitialized inner map
+  grid := make(map[string]map[string]int)
+  grid["a"]["b"] = 1   // panics if grid["a"] was never created
+
+✅ RIGHT: initialize the inner map first
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the nil-map asymmetry diagram and
+  comma-ok truth table
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Map creation, the nil gotcha, CRUD, comma-ok, keys, sets, the struct
+     addressability gotcha, and nested maps - all explained with verified
+     real output
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs captured from real runs, including real panic and
+     compiler error text
+
+📄 STUDY_GUIDE.md
+   → Map operations reference table
+   → The nil-map asymmetry, diagrammed
+   → comma-ok truth table
+   → Valid vs invalid map key types
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does reading a nil map work but writing doesn't?
+A: A nil map has no hash table allocated. Answering "is this here?" needs no
+   storage, so it's always safe. Storing a new entry needs somewhere to put
+   it, and Go won't silently allocate that for you.
+
+Q: When do I actually need comma-ok?
+A: Whenever the zero value (0, "", false) could legitimately be a value your
+   program stores on purpose - comma-ok is the only way to tell "stored zero"
+   from "never stored."
+
+Q: Why can't I use a slice as a map key?
+A: Map keys must be comparable with ==. Slices (and maps, and functions)
+   aren't comparable, so the compiler rejects them.
+
+Q: Why doesn't players["alice"].Score = 10 compile?
+A: Map values aren't addressable - players["alice"] behaves like a copy, not
+   a real memory location. Reassign the whole struct, or store pointers.
+
+Q: Why does grid["a"]["b"] = 1 panic even though grid isn't nil?
+A: grid["a"] (the inner map) can still be nil even if grid itself was made.
+   Same nil-map-write rule, one level deeper.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 10?
+================================================================================
+
+Level 11: Functions
+  - Declaring and calling functions
+  - Multiple return values
+  - Variadic parameters
+  - Closures and first-class functions
+
+You'll use maps constantly as you build real functions and programs!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Maps are Go's workhorse data structure. Master the nil-map rule and
+comma-ok now, and you'll avoid two of the most common bugs Go beginners hit.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 11 - Functions
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- Reading a nil map is always safe; writing to one always panics
+- comma-ok (v, ok := m[k]) is the only reliable way to check presence
+- Map keys must be comparable - slices, maps, and funcs can't be keys
+- map[T]struct{} is the idiomatic, zero-memory way to build a set
+- Map values aren't addressable - reassign whole structs or use pointers
+- Guard nested map writes by initializing the inner map first
+
+Let's go! 🎉
+
+================================================================================

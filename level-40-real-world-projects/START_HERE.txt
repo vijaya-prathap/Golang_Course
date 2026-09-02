@@ -1,0 +1,339 @@
+================================================================================
+                    LEVEL 40: REAL-WORLD PROJECTS
+                       START HERE! 👋 (CAPSTONE)
+================================================================================
+
+Welcome to Level 40 - the capstone! You've mastered System Design (Level 39)
+and everything before it. Now it's time to stop practicing tools in
+isolation and build ONE real, working, tested system that uses nearly
+everything you've learned: repositories, services, handlers, dependency
+injection, JWT auth, structured logging, configuration, rate limiting,
+testing, and (as far as this environment allows) packaging for production.
+
+================================================================================
+                          WHAT YOU'LL BUILD
+================================================================================
+
+A URL Shortener API:
+
+  POST /auth/register           create a user account
+  POST /auth/login               get back a signed JWT
+  POST /shorten   (JWT required) create a short link
+  GET  /{code}                   PUBLIC redirect (rate-limited)
+  GET  /stats/{code}             PUBLIC read-only click stats
+  GET  /healthz                  liveness check
+
+Built layer by layer - Repository, then Service, then Handler - then
+locked down with auth, made observable with logging, protected with a
+rate limiter, proven with real tests, and packaged with Docker/Kubernetes.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ How to design an API's endpoints and data model BEFORE writing code
+✅ Repository-Service-Handler layering, built from scratch (Level 30)
+✅ Wiring an entire dependency graph by hand (Level 31)
+✅ JWT auth middleware protecting exactly one endpoint (Level 32)
+✅ Structured logging + fail-fast configuration as real middleware (33, 34)
+✅ A token-bucket rate limiter, bridged from Level 39's theory into code
+✅ Proving a whole system works with one end-to-end test (Level 26)
+✅ Two REAL bugs this level's own authoring hit - and how they were fixed
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 40 Duration: 8-12 hours
+- Theory & Design: 1.5 hours
+- 10 Hands-on Milestones: 6-9 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐⭐ (Capstone)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 39 (System Design)
+  ✅ Comfortable with Level 30 (Repository-Service-Handler)
+  ✅ Comfortable with Level 31 (Dependency Injection)
+  ✅ Comfortable with Level 32 (Authentication & JWT)
+  ✅ Comfortable with Level 33 (Logging) and Level 34 (Configuration)
+  ✅ Comfortable with Level 26 (Testing) and httptest
+
+If any of those feel shaky, this is the level where it will show - go back
+and review before diving in.
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Week 1 - Foundations (3-4 hours)
+  → Read README.md Sections 1-6
+  → Complete Milestones 1-4 (repositories + services)
+
+Week 2 - HTTP and Security (2-3 hours)
+  → Read README.md Sections 7-8
+  → Complete Milestones 5-6 (handlers + real JWT middleware)
+
+Week 3 - Observability, Resilience, Proof (3-4 hours)
+  → Read README.md Sections 9-11
+  → Complete Milestones 7-9 (logging, config, rate limiter, end-to-end test)
+  → Budget extra time - this is where BOTH real bugs live
+
+Week 4 - Shipping (1-2 hours)
+  → Read README.md Sections 12-15
+  → Complete Milestone 10 (Docker + Kubernetes) and bonus challenges
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+Why a Capstone?
+  → Every level 1-39 taught ONE skill in isolation
+  → Real engineering needs ALL of them working together at once
+  → This level is the first time you'll feel what that actually takes
+
+The Architecture (Levels 30 + 31):
+
+  Handler  ──depends on──>  Service  ──depends on──>  Repository (interface)
+  (HTTP)                     (rules)                    (in-memory storage)
+
+  Wired together by hand in main.go's buildServer() - the ONE place that
+  knows any concrete type. Everything else depends on interfaces.
+
+================================================================================
+                    THE 10 MILESTONES
+================================================================================
+
+ 1. Domain models + Link repository (in-memory, mutex-guarded)
+ 2. User repository (username uniqueness enforced at storage)
+ 3. LinkService: URL validation, per-user limit, crypto/rand short codes
+ 4. UserService: bcrypt password hashing, JWT issue/parse (Level 32)
+ 5. Handler layer: routes wired to services, tested with stub middleware
+ 6. REAL JWT auth middleware, replacing the test stub
+ 7. Structured logging + configuration - catches a REAL bug along the way
+ 8. Token-bucket rate limiter (bridges Level 39)
+ 9. main.go wiring + full end-to-end test - catches a SECOND real bug
+10. Dockerfile + Kubernetes manifests (Levels 35-36's honesty pattern)
+
+Every milestone with Go code is ACTUALLY RUN - go build, go test, go run,
+even real curl commands against a live server. Nothing is hand-computed.
+
+================================================================================
+                 A TASTE OF THE ARCHITECTURE
+================================================================================
+
+package main
+
+// buildServer is the composition root (Level 31): the ONE place that
+// knows how the whole dependency graph fits together.
+func buildServer(cfg config.Config, logger *slog.Logger) http.Handler {
+    linkRepo := repository.NewInMemoryLinkRepository()
+    userRepo := repository.NewInMemoryUserRepository()
+
+    linkService := service.NewLinkService(linkRepo, cfg.CodeLength)
+    userService := service.NewUserService(userRepo, cfg.JWTSecret, cfg.TokenTTL)
+
+    linkHandler := handler.NewLinkHandler(linkService)
+    authHandler := handler.NewAuthHandler(userService)
+
+    logging := middleware.Logging(logger)
+    requireAuth := middleware.RequireAuth(userService)
+    limiter := ratelimit.NewLimiter(cfg.RateLimitPerSec, cfg.RateLimitBurst)
+
+    return handler.NewMux(linkHandler, authHandler, logging, requireAuth,
+        limiter.Middleware(ratelimit.KeyByRemoteAddr))
+}
+
+Real output from running the finished service and hitting it with curl:
+
+  === POST /shorten (Authorization: Bearer <token>) ===
+  {"code":"YXD97v0","long_url":"https://go.dev/doc/effective_go", ...}
+  HTTP 201
+
+  === POST /shorten (no Authorization header) ===
+  missing or malformed Authorization header
+  HTTP 401
+
+================================================================================
+                 TWO REAL BUGS YOU'LL RECREATE
+================================================================================
+
+This level's own authoring hit two genuine bugs while writing its tests -
+both left in EXERCISES.md on purpose, because real testing finds real
+bugs even in carefully-written code:
+
+  BUG 1 (Milestone 7): t.Setenv("PORT", "") sets PORT to an EMPTY STRING,
+  which os.LookupEnv correctly reports as PRESENT, not unset - so a
+  default value never applied. The fix was in the TEST, not the code.
+
+  BUG 2 (Milestone 9): closing an HTTP response body without reading it
+  first prevents connection reuse, which meant a rate limiter keyed by
+  RemoteAddr got a BRAND NEW client "identity" on every single request in
+  a test loop - so it never throttled anything. The fix: drain the body
+  before closing it.
+
+Both are walked through step by step, with the real failing output shown
+BEFORE the fix, exactly as they happened during this level's own build.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Coding straight into handlers without designing the API first
+  → discovers the request/response shape by accident, three refactors in
+
+✅ RIGHT: Write the endpoint table and data model FIRST (README.md Section 3)
+
+---
+
+❌ WRONG: Business logic leaking into the Handler
+  func (h *LinkHandler) CreateLink(w, r) {
+      if !strings.HasPrefix(url, "http") { ... }  // validation doesn't belong here!
+      h.repo.Create(...)                           // skips the Service entirely!
+  }
+
+✅ RIGHT: Handler decodes and delegates; Service validates and decides
+
+---
+
+❌ WRONG: Writing all 10 milestones, then testing once at the very end
+  → both real bugs above would be MUCH harder to isolate this way
+
+✅ RIGHT: Run go test after every single milestone, exactly as EXERCISES.md does
+
+---
+
+❌ WRONG: Over-scoping - "my capstone will also have an admin dashboard,
+  OAuth, analytics, and email notifications..."
+
+✅ RIGHT: One resource, fully built, fully tested, fully shippable - small
+  and complete beats large and half-finished
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-6 (about 35 minutes)
+
+Step 2: Look at the Architecture
+  Open STUDY_GUIDE.md and study the full architecture diagram and the
+  two request-flow diagrams
+
+Step 3: Start Building
+  Open EXERCISES.md and start with Milestone 1 - set up the project and
+  build the Link repository
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while building
+
+Step 5: Complete All 10 Milestones
+  Don't skip the two milestones with the real bugs (7 and 9) - reproducing
+  the failure before applying the fix is the whole point
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory: why this level exists, project design, complete
+     architecture, building every layer, best practices, common mistakes
+
+📄 EXERCISES.md
+   → 10 sequential milestones building ONE continuous project
+   → Copy-paste ready bash commands and full Go source for every file
+   → Real captured output at every step, including two real bugs and fixes
+
+📄 STUDY_GUIDE.md
+   → The complete architecture diagram, all layers together
+   → API endpoint reference table
+   → Two full request-flow diagrams
+   → Milestone roadmap, common mistakes, Level 41 readiness checklist
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet: every endpoint, every layer's core code shape
+   → The two real bugs and their fixes, at a glance
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why in-memory storage instead of a real database?
+A: Level 30's own argument: the whole point of the Repository interface is
+   that storage is swappable. Keeping it in-memory keeps this level's
+   storage layer 100% offline; swapping in Level 29's SQLite approach
+   later is a pure drop-in behind the same interface.
+
+Q: Why does this level use bcrypt and JWT if the course avoids network
+   dependencies elsewhere?
+A: Level 32 already established this exact, clearly-flagged exception -
+   both are pinned versions, fetched once, cached after that.
+
+Q: Why is only ONE endpoint rate-limited and only ONE endpoint auth-protected?
+A: Because that's the honest answer to "which endpoint needs this?" -
+   GET /{code} is the one the whole internet can hit; POST /shorten is the
+   one that creates data on someone's behalf. Protecting everything
+   uniformly would be less realistic, not more secure.
+
+Q: Are the Docker/Kubernetes steps actually verified?
+A: No - and the materials say so explicitly, following the exact honesty
+   pattern Levels 35 and 36 already established for this environment.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 40?
+================================================================================
+
+Level 41: Go Interview Preparation
+  - Turning this capstone's architecture into confident interview answers
+  - Common Go interview topics: concurrency, interfaces, error handling
+  - Practice explaining exactly why this project is shaped the way it is
+
+You'll walk into Level 41 with a real, complete project to point to -
+not a toy example, something you built, broke, fixed, and tested yourself.
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-6
+4. Come back and start Milestone 1
+
+This is the level where everything clicks into place. Take your time,
+run every command for real, and let the two real bugs teach you something
+neither a clean example nor a lecture ever could.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 41 - Go Interview Preparation
+Estimated completion: 8-12 hours
+Difficulty: ⭐⭐⭐⭐⭐ (Capstone)
+
+Remember:
+- Design the API before writing any code
+- Build bottom-up (Repository -> Service -> Handler) and test as you go
+- Every dependency is injected as an interface; only main.go knows concretes
+- Real bugs are normal - what matters is that a test catches them fast
+
+Let's go! 🎉
+
+================================================================================

@@ -1,0 +1,426 @@
+================================================================================
+                          LEVEL 14: METHODS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 14! You've mastered structs (Level 13). Now it's time to
+learn METHODS - how to attach behavior directly to your types instead of
+passing them around as plain data.
+
+You actually met a method back in Level 3 (type Age int with an IsAdult()
+method). This level formalizes that idea and goes deep: what a receiver
+really is, when it copies your data and when it doesn't, and the method-set
+rules that will power INTERFACES in Level 15.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What a method is: a function with a receiver
+✅ Declaring methods on structs and receiver naming conventions
+✅ Value receivers - the method operates on a COPY
+✅ Pointer receivers - the method mutates the ORIGINAL
+✅ Choosing between value and pointer receivers + the consistency rule
+✅ The auto-address/auto-dereference sugar, and where it can't help
+✅ Method sets (T vs *T) - the foundation for Level 15 interfaces
+✅ Methods on named non-struct types (Celsius, Path)
+✅ Method promotion through embedding, and overriding
+✅ Method values and method expressions
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 14 Duration: 4-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 13 (Structs)
+  ✅ Comfortable with struct definitions, literals, and constructors
+  ✅ Comfortable with embedding and field promotion
+  ✅ Comfortable with pointers and &/* (from Level 12)
+
+If you haven't done Level 13, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Methods & Value Receivers (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - Pointer Receivers & Choosing (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - Addressability & Method Sets (2 hours)
+  → Read README.md Sections 6-7 - 30 min
+  → Complete Exercises 5-6 - 1.5 hours
+
+Day 4 - Named Types, Promotion & Method Values (2 hours)
+  → Read README.md Sections 8-10 - 30 min
+  → Complete Exercises 7-9 - 1.5 hours
+
+Day 5 - Consolidate (1.5 hours)
+  → Complete Exercise 10 (ShoppingCart)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md until the method-set table is automatic
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Method?
+  → A function with a RECEIVER - an extra parameter written before the
+    function name that binds the function to a type
+  → func (r Rectangle) Area() float64 { ... }  -- same power as a plain
+    function, just called as rect.Area() instead of area(rect)
+
+Why Methods Matter:
+  → Behavior lives right next to the data it belongs to
+  → Every type gets its own namespace - Rectangle and Circle can both
+    have Area()
+  → Methods are what make a type satisfy an INTERFACE (Level 15) - this
+    is the single biggest payoff of this level
+
+================================================================================
+                 VALUE RECEIVERS: THE METHOD GETS A COPY
+================================================================================
+
+With a value receiver, the method receives a COPY of the caller's value.
+Mutations inside the method are thrown away when it returns.
+
+  func (c Counter) Increment() {
+      c.Count++
+  }
+
+  c := Counter{Count: 0}
+  c.Increment()
+  fmt.Println(c.Count)   // still 0 - the copy was incremented, not c!
+
+================================================================================
+                POINTER RECEIVERS: THE METHOD GETS THE ORIGINAL
+================================================================================
+
+With a pointer receiver, the method receives a POINTER to the caller's
+value, so mutations stick.
+
+  func (c *Counter) Increment() {
+      c.Count++
+  }
+
+  c := Counter{Count: 0}
+  c.Increment()
+  fmt.Println(c.Count)   // 1 - the original was mutated!
+
+THE CONSISTENCY RULE 🚨
+  If ANY method of a type needs a pointer receiver, give ALL of that
+  type's methods pointer receivers. Mixing the two hides bugs - some
+  calls mutate, others silently don't - and confuses the method-set
+  rules interfaces rely on in Level 15.
+
+================================================================================
+              AUTO-ADDRESS SUGAR (AND WHERE IT BREAKS)
+================================================================================
+
+Go quietly rewrites some calls for you:
+
+  acct.Deposit(50)   // sugar for (&acct).Deposit(50) - acct is addressable
+  ptr.Report()       // sugar for (*ptr).Report()
+
+But this sugar needs an ADDRESSABLE value. Two everyday values are NOT
+addressable, and calling a pointer method on them is a COMPILE ERROR:
+
+  players["alice"].AddPoints(5)   // ❌ map elements aren't addressable
+  makeCounter().Increment()       // ❌ function return values aren't either
+
+The real error looks like this:
+
+  ./main.go:19:22: cannot call pointer method AddPoints on Player
+
+Fix it by copying the value out, modifying it, and storing it back - or
+by storing pointers in the map (map[string]*Player) to begin with.
+
+================================================================================
+              METHOD SETS: THE BRIDGE TO INTERFACES
+================================================================================
+
+  Type T:   method set = value-receiver methods ONLY
+  Type *T:  method set = value-receiver methods AND pointer-receiver methods
+
+This matters because interfaces (Level 15) are satisfied by method sets,
+and there's no auto-address sugar there:
+
+  var c Counter
+  var i Incrementer = c    // ❌ Counter's method set lacks Increment
+  var i Incrementer = &c   // ✅ *Counter's method set has it
+
+================================================================================
+                METHODS ON NAMED NON-STRUCT TYPES
+================================================================================
+
+Receivers aren't limited to structs - any named type in your package can
+have methods, deepening Level 3's type Age int pattern:
+
+  type Celsius float64
+
+  func (c Celsius) ToFahrenheit() Fahrenheit {
+      return Fahrenheit(c*9/5 + 32)
+  }
+
+  boiling := Celsius(100)
+  fmt.Println(boiling.ToFahrenheit())   // 212
+
+================================================================================
+                METHOD PROMOTION THROUGH EMBEDDING
+================================================================================
+
+Embedding a type promotes its FIELDS (Level 13) and its METHODS too:
+
+  type Animal struct{ Name string }
+  func (a Animal) Speak() string { return a.Name + " makes a sound" }
+
+  type Dog struct {
+      Animal   // embedded: Speak() is PROMOTED to Dog
+      Breed string
+  }
+
+  d := Dog{Animal: Animal{Name: "Rex"}}
+  d.Speak()   // "Rex makes a sound" - Animal's method, called on Dog
+
+Define a same-name method on Dog and it OVERRIDES the promoted one; you
+can still reach the original through d.Animal.Speak().
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import "fmt"
+
+type Rectangle struct {
+    Width  float64
+    Height float64
+}
+
+func (r Rectangle) Area() float64 {
+    return r.Width * r.Height
+}
+
+func (r *Rectangle) Scale(factor float64) {
+    r.Width *= factor
+    r.Height *= factor
+}
+
+func main() {
+    rect := Rectangle{Width: 4, Height: 3}
+    fmt.Println("Area:", rect.Area())
+
+    rect.Scale(2)
+    fmt.Println("Scaled Area:", rect.Area())
+}
+
+Output:
+  Area: 12
+  Scaled Area: 48
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. METHODS
+   func (r Rectangle) Area() float64 { } - a function with a receiver
+
+2. VALUE VS POINTER RECEIVERS
+   Value copies (mutations lost); pointer mutates the original.
+   One pointer receiver on a type -> all methods get pointer receivers.
+
+3. ADDRESSABILITY
+   v.PointerMethod() works if v is addressable. Map elements and
+   function return values are NOT - that's a compile error, not a bug.
+
+4. METHOD SETS
+   T: value-receiver methods only. *T: value AND pointer-receiver
+   methods. This decides interface satisfaction in Level 15.
+
+5. PROMOTION
+   Embedding promotes methods too; a same-name outer method overrides.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Mutating through a value receiver (silent no-op)
+  func (c Counter) Increment() { c.Count++ }   // caller sees no change!
+
+✅ RIGHT
+  func (c *Counter) Increment() { c.Count++ }
+
+---
+
+❌ WRONG: Calling a pointer method on a non-addressable value
+  players["alice"].AddPoints(5)
+  // cannot call pointer method AddPoints on Player
+
+✅ RIGHT: copy out, modify, store back (or use map[string]*Player)
+  p := players["alice"]
+  p.AddPoints(5)
+  players["alice"] = p
+
+---
+
+❌ WRONG: Mixing value and pointer receivers on one type
+  func (b *BankAccount) Deposit(n float64)  { b.Balance += n }
+  func (b BankAccount) Withdraw(n float64)  { b.Balance -= n }  // bug!
+
+✅ RIGHT: make every method a pointer receiver once one of them needs it
+
+---
+
+❌ WRONG: Naming the receiver this or self
+  func (this *Account) Deposit(n float64) { }
+
+✅ RIGHT: short, consistent, first letter of the type
+  func (a *Account) Deposit(n float64) { }
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the receiver decision tree and the
+  method-set table
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, including the intentional compile
+  error in Exercise 5 - reading a real error message is part of the
+  lesson
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Receivers, value vs pointer semantics, addressability, method sets,
+     named types, promotion, and method values - all explained with
+     verified examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs captured from real go run/go build results
+
+📄 STUDY_GUIDE.md
+   → Method anatomy diagram
+   → Value vs pointer receiver comparison table and decision tree
+   → Method-set table (T vs *T) and promotion diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax and receiver decision rules
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Are methods just functions with different syntax?
+A: Essentially yes - same power, different organization. But only
+   methods count toward a type's method set, and method sets are what
+   satisfy interfaces in Level 15. That's why methods matter so much.
+
+Q: Why did my method's change to the struct disappear?
+A: Your receiver is a value receiver, so the method mutated a copy.
+   Switch to a pointer receiver: func (c *Counter) Increment().
+
+Q: Why does players["alice"].AddPoints(5) fail to compile?
+A: AddPoints needs a *Player, and map elements aren't addressable - Go
+   can't take &players["alice"]. Copy the value out, modify it, and
+   store it back, or store *Player in the map instead.
+
+Q: Is method promotion the same as inheritance?
+A: No - it's composition with convenient syntax. d.Describe() is really
+   shorthand for d.Animal.Describe(). There's no virtual dispatch, and a
+   same-name outer method simply shadows the promoted one.
+
+Q: Should I name my receiver this or self?
+A: No - Go convention is a short name derived from the type, like c for
+   *Counter. Using this/self marks code as non-idiomatic Go.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 14?
+================================================================================
+
+Level 15: Interfaces
+  - Defining interfaces and implicit satisfaction
+  - Method sets in action: which types satisfy which interfaces
+  - The empty interface and type assertions
+  - fmt.Stringer and the standard library's small-interface style
+
+Everything you learn about method sets in Level 14 becomes the rulebook
+for interface satisfaction in Level 15!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Methods turn your data into types with real behavior. Master receivers
+now and interfaces in Level 15 will click into place almost for free.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 15 - Interfaces
+Estimated completion: 4-6 hours
+Difficulty: ⭐⭐⭐ (Intermediate)
+
+Remember:
+- A method is a function with a receiver - same power, better organization
+- Value receivers copy, pointer receivers mutate the original
+- One pointer receiver on a type means ALL methods get pointer receivers
+- Map elements and function return values are not addressable
+- T's method set is value-receiver methods only; *T's includes pointer
+  receivers too - this is the rule interfaces will lean on next
+
+Let's go! 🎉
+
+================================================================================

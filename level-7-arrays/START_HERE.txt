@@ -1,0 +1,426 @@
+================================================================================
+                          LEVEL 7: ARRAYS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 7! You've mastered loops (Level 6). Now it's time to look
+closely at the simplest collection type in Go: the ARRAY.
+
+An array is a FIXED-SIZE, HOMOGENEOUS collection - a set number of elements,
+all the same type, and that size is locked into the type itself. This level
+also teaches the single most important idea before you reach slices: arrays
+are VALUE TYPES. Copying one, or passing one to a function, always copies
+every element.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What makes arrays fixed-size and homogeneous
+✅ Every way to declare an array: var, literals, [...], sparse index literals
+✅ Indexing, len(), zero values, and bounds checking
+✅ Why arrays are value types - assignment and function calls both COPY them
+✅ Comparing arrays with == and using them as map keys
+✅ Multi-dimensional arrays for grid-shaped data
+✅ When to actually choose an array over a slice (rarer than you'd think!)
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 7 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐ (Intermediate)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 6 (Loops)
+  ✅ Comfortable with all three for loop forms
+  ✅ Comfortable with range over slices, strings, and maps
+
+If you haven't done Level 6, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Declaring and Indexing Arrays (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - Value Semantics: The Big Idea (2 hours)
+  → Read README.md Section 4 carefully - 25 min
+  → Complete Exercises 3-4 - 1.5 hours (run the code yourself!)
+
+Day 3 - Comparison & Multi-Dimensional Arrays (1.5 hours)
+  → Read README.md Sections 5-6 - 25 min
+  → Complete Exercises 5-6 - 1 hour 5 min
+
+Day 4 - range, Array vs Slice, & Real Projects (1.5 hours)
+  → Complete Exercises 7-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review the copy-semantics diagram in STUDY_GUIDE.md
+  → Ask: "Can I prove, with running code, that arrays copy?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is an Array?
+  → A fixed number of elements, all the same type, stored contiguously
+  → The length is part of the TYPE - [3]int and [4]int are DIFFERENT types
+  → Every array starts fully initialized to its zero value - no "nil" array
+
+Why Arrays Matter:
+  → They're the foundation slices are built on - a slice is a small header
+    (pointer, length, capacity) pointing INTO an array
+  → Sometimes fixed-size IS the correct guarantee: a chess board is always
+    8x8, a SHA-256 hash is always 32 bytes
+  → Arrays are comparable and can be map keys - slices never can be
+
+================================================================================
+                 DECLARING ARRAYS - EVERY FORM
+================================================================================
+
+1. var, ZERO-VALUED
+
+  var arr [5]int
+  fmt.Println(arr)   // [0 0 0 0 0]
+
+2. LITERAL WITH EXPLICIT SIZE
+
+  colors := [3]string{"Red", "Green", "Blue"}
+
+3. LITERAL WITH SIZE INFERENCE [...]
+
+  primes := [...]int{2, 3, 5, 7, 11}   // type is [5]int
+  len(primes)                          // 5
+
+4. SPARSE INDEX LITERAL
+
+  sparse := [5]int{0: 1, 4: 5}
+  fmt.Println(sparse)   // [1 0 0 0 5]
+
+================================================================================
+              THE MOST IMPORTANT IDEA IN THIS LEVEL
+================================================================================
+
+ARRAYS ARE VALUE TYPES. Assigning one, or passing one to a function,
+COPIES EVERY ELEMENT. There is no shared memory the way there is with
+slices, maps, or pointers.
+
+  a := [3]int{1, 2, 3}
+  b := a          // COPY - b is a totally separate [3]int
+  b[0] = 99
+
+  fmt.Println(a)  // [1 2 3]   <- unchanged!
+  fmt.Println(b)  // [99 2 3]
+
+Compare a SLICE, where the exact same syntax shares the underlying data:
+
+  sa := []int{1, 2, 3}
+  sb := sa        // sb points at the SAME underlying array
+  sb[0] = 99
+
+  fmt.Println(sa) // [99 2 3]  <- changed too!
+  fmt.Println(sb) // [99 2 3]
+
+The SAME RULE applies to function calls - passing an argument is just
+"assigning it to the parameter":
+
+  func zeroOut(arr [3]int) {
+      for i := range arr { arr[i] = 0 }
+  }
+
+  nums := [3]int{1, 2, 3}
+  zeroOut(nums)
+  fmt.Println(nums)   // [1 2 3] - STILL unchanged! zeroOut only zeroed its copy
+
+This is exactly why Go code almost always uses SLICES as function
+parameters instead of arrays.
+
+================================================================================
+                 COMPARING ARRAYS WITH ==
+================================================================================
+
+Because arrays are values (and their elements can be compared), arrays of
+the SAME TYPE (same element type AND same size) can be compared directly:
+
+  a := [3]int{1, 2, 3}
+  b := [3]int{1, 2, 3}
+  fmt.Println(a == b)   // true
+
+  d := [4]int{1, 2, 3, 4}
+  // fmt.Println(a == d)
+  // compile error: mismatched types [3]int and [4]int
+
+Because they're comparable, arrays can even be MAP KEYS - something a
+slice can never do:
+
+  seen := map[[2]int]string{}
+  seen[[2]int{0, 0}] = "origin"
+
+================================================================================
+                 MULTI-DIMENSIONAL ARRAYS
+================================================================================
+
+Arrays can hold other arrays, giving you grid-shaped data:
+
+  var grid [3][3]int
+  grid[1][2] = 7        // grid[row][col]
+
+  board := [2][3]string{
+      {"X", "O", "X"},
+      {"O", "X", "O"},
+  }
+
+  len(grid)      // 3 - number of rows
+  len(grid[0])   // 3 - number of columns
+
+  for r, row := range grid {
+      for c, v := range row {
+          fmt.Println(r, c, v)
+      }
+  }
+
+================================================================================
+                 ARRAY vs SLICE: WHICH DO I USE?
+================================================================================
+
+SHORT ANSWER: reach for a SLICE almost every time.
+
+Use an ARRAY when:
+  - The size is fixed by the DOMAIN, not by how much data shows up
+    (a tic-tac-toe board is always 3x3, an IPv4 address is always 4 bytes)
+  - You want value semantics (a real copy) on purpose
+  - You need comparability with == or to use it as a map key
+
+Use a SLICE (idiomatic almost everywhere) when:
+  - The number of elements can grow, shrink, or isn't known ahead of time
+  - You want mutations inside a function to be visible to the caller
+  - You want append(), re-slicing, or cheap sub-ranges
+
+  arr := [5]int{10, 20, 30, 40, 50}
+  s := arr[:]     // slice over the whole array - SHARES memory with arr!
+  s[0] = 999
+  fmt.Println(arr) // [999 20 30 40 50] - arr changed too
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import "fmt"
+
+func main() {
+    scores := [4]int{85, 92, 78, 95}
+
+    sum := 0
+    for _, s := range scores {
+        sum += s
+    }
+    fmt.Println("Scores:", scores)
+    fmt.Println("Sum:", sum)
+
+    copyOfScores := scores
+    copyOfScores[0] = 0
+    fmt.Println("Original untouched:", scores)
+    fmt.Println("Copy modified:     ", copyOfScores)
+}
+
+Output:
+  Scores: [85 92 78 95]
+  Sum: 350
+  Original untouched: [85 92 78 95]
+  Copy modified:      [0 92 78 95]
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. FIXED SIZE IS PART OF THE TYPE
+   [3]int and [4]int are as different as int and string
+
+2. ARRAYS COPY, SLICES SHARE
+   b := a  on an array copies every element; on a slice it shares memory
+
+3. COMPARISON
+   == works between arrays of the same type; enables map[[N]T]V
+
+4. MULTI-DIMENSIONAL
+   grid[row][col] - arrays of arrays for grid-shaped data
+
+5. THE DEFAULT
+   Use slices almost everywhere; arrays for genuinely fixed-size domains
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Expecting a function to mutate an array parameter
+  func addOne(arr [3]int) { arr[0]++ }
+  nums := [3]int{1, 2, 3}
+  addOne(nums)
+  fmt.Println(nums)   // still [1 2 3]!
+
+✅ RIGHT: Use a slice (or a pointer to the array) if mutation must be visible
+  func addOne(nums []int) { nums[0]++ }
+
+---
+
+❌ WRONG: Treating [3]int and [4]int as compatible
+  var a [3]int
+  var b [4]int = a   // compile error!
+
+✅ RIGHT: Sizes must match exactly, or use a slice if size can vary
+
+---
+
+❌ WRONG: Assuming [...] means "grows dynamically"
+  nums := [...]int{1, 2, 3}
+  // nums = append(nums, 4)   // compile error - arrays have no append!
+
+✅ RIGHT: Use a slice ([]int) if the size needs to change later
+
+---
+
+❌ WRONG: Forgetting range gives you copies
+  for _, p := range prices {
+      p *= 1.1   // only changes the local copy - prices is untouched
+  }
+
+✅ RIGHT: Index back into the array to mutate it
+  for i := range prices {
+      prices[i] *= 1.1
+  }
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the array copy diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Declaration forms, value semantics, comparison, multi-dimensional arrays
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs, all verified against real `go run` output
+
+📄 STUDY_GUIDE.md
+   → The array copy diagram (arrays vs slices, side by side)
+   → Multi-dimensional array indexing diagram
+   → Array vs slice decision tree
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does Go even have arrays if slices are more flexible?
+A: Sometimes fixed-size IS the correct guarantee (board games, hash sizes,
+   binary headers), and arrays are comparable / usable as map keys, which
+   slices never can be. Slices are also literally built on top of arrays.
+
+Q: If I assign one array to another, is it a reference like a slice?
+A: No. Array assignment ALWAYS copies every element - for `:=`/`=` AND for
+   function arguments. Slices are the ones that share memory instead.
+
+Q: Are [3]int and [4]int really different types?
+A: Yes. Size is part of the type. You can't assign, compare, or pass one
+   where the other is expected.
+
+Q: Why did arr[3] on a [3]int fail to COMPILE instead of panicking?
+A: When the index is a literal constant, Go checks array bounds at compile
+   time. Only a variable index (unknown until runtime) becomes a panic.
+
+Q: Should function parameters be arrays or slices?
+A: Slices, almost always - arrays get fully copied on every call.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 7?
+================================================================================
+
+Level 8: Slices
+  - Slices in depth: the pointer/length/capacity header
+  - append, growth, and re-slicing
+  - Why slices share memory - and when that surprises you
+
+You'll rely on arrays constantly in Level 8 - slices are built right on
+top of them!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Arrays are the foundation everything else in Go's collection types is
+built on. Master the copy-semantics idea now, and slices in Level 8 will
+click into place immediately.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 8 - Slices
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐ (Intermediate)
+
+Remember:
+- Array size is part of the type - [3]int and [4]int are different types
+- Arrays COPY on assignment and on function calls - slices SHARE instead
+- Arrays are comparable with == and can be map keys; slices cannot
+- Reach for a slice almost every time - arrays are the deliberate exception
+
+Let's go! 🎉
+
+================================================================================

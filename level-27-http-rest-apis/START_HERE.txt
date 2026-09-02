@@ -1,0 +1,375 @@
+================================================================================
+                     LEVEL 27: HTTP & REST APIs
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 27! You've mastered testing (Level 26) - you can write
+TestXxx functions, table-driven tests, and you got a preview of
+httptest.NewRecorder for testing HTTP handlers. Now it's time to build the
+thing those handlers actually serve: real HTTP servers and REST APIs,
+using nothing but Go's standard library (net/http).
+
+This level is ADVANCED because it's where everything comes together:
+JSON (Level 19), errors (Level 16), mutexes (Level 23), context (Level 24),
+and testing (Level 26) all meet behind one HTTP boundary.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ The http.Handler / http.HandlerFunc interface
+✅ Routing with http.ServeMux - real method-specific and wildcard patterns
+✅ Reading path values, query parameters, and JSON request bodies
+✅ Writing JSON responses with correct headers and status codes
+✅ Building a complete in-memory CRUD REST resource
+✅ The middleware pattern: func(http.Handler) http.Handler
+✅ Testing handlers with httptest.NewRecorder and httptest.NewServer
+✅ Using context.WithTimeout inside a handler to bound slow work
+✅ Consistent JSON error responses mapped from Go errors
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 27 Duration: 6-8 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 4-5 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5-1 hour
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 26 (Testing)
+  ✅ Comfortable with JSON structs and tags (Level 19)
+  ✅ Comfortable with errors and errors.Is/wrapping (Level 16)
+  ✅ Comfortable with sync.Mutex (Level 23) and context.Context (Level 24)
+
+If you haven't done Level 26, go back and complete it first!
+
+Note: this project's go.mod targets go 1.26.5. That matters here more than
+in most levels - http.ServeMux only gained method-specific and wildcard
+routing in Go 1.22, and every routing example in this level uses that real,
+modern syntax (verified by actually running it on this toolchain).
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Fundamentals & Routing (2.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 35 min
+  → Complete Exercises 1-2 - 1 hour 45 min
+
+Day 2 - Reading & Writing HTTP (2 hours)
+  → Read README.md Sections 3-4 - 25 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - A Real REST Resource (2 hours)
+  → Read README.md Section 5 - 20 min
+  → Complete Exercise 5 - 1.5 hours
+
+Day 4 - Middleware & Testing (2.5 hours)
+  → Read README.md Sections 6-7 - 30 min
+  → Complete Exercises 6-7 - 2 hours
+
+Day 5 - Context & Errors (2 hours)
+  → Read README.md Sections 8-9 - 25 min
+  → Complete Exercises 8-9 - 1.5 hours
+
+Day 6 - Comprehensive Practice (2 hours)
+  → Complete Exercise 10 - 1.5 hours
+  → Try bonus challenges
+
+Day 7 - Consolidate (1 hour)
+  → Review with QUICK_REFERENCE.md and STUDY_GUIDE.md
+  → Ask: "Can I write a ServeMux route and middleware from memory?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is an HTTP Handler?
+  → Anything with a ServeHTTP(w http.ResponseWriter, r *http.Request) method
+  → That's it - no base class, no framework object, one method
+  → http.HandlerFunc adapts an ordinary function into a Handler
+
+Why This Level Matters:
+  → Every Go web framework (Gin included, Level 28) is built ON TOP of
+    net/http's Handler interface - learn this and every framework
+    afterward is just convenience layered on what you already understand
+  → REST APIs are how most real Go services talk to the outside world
+
+================================================================================
+                 THE core INTERFACE
+================================================================================
+
+  type Handler interface {
+      ServeHTTP(ResponseWriter, *Request)
+  }
+
+  type HandlerFunc func(ResponseWriter, *Request) // adapts a func
+
+  func hello(w http.ResponseWriter, r *http.Request) {
+      fmt.Fprintln(w, "Hello, World!")
+  }
+  // http.HandlerFunc(hello) now satisfies http.Handler
+
+================================================================================
+                 MODERN ROUTING (Go 1.22+)
+================================================================================
+
+  mux := http.NewServeMux()
+  mux.HandleFunc("GET /items", listItems)
+  mux.HandleFunc("POST /items", createItem)
+  mux.HandleFunc("GET /items/{id}", getItem)
+  mux.HandleFunc("DELETE /items/{id}", deleteItem)
+
+  id := r.PathValue("id") // read a matched wildcard
+
+VERIFIED, REAL BEHAVIOR: registering GET/POST /items but sending a PUT to
+/items returns 405 Method Not Allowed automatically - ServeMux does this
+without any code from you.
+
+================================================================================
+                    READING AND WRITING
+================================================================================
+
+Reading:
+  id := r.PathValue("id")
+  q := r.URL.Query().Get("q")
+  json.NewDecoder(r.Body).Decode(&req)   // always check the error!
+
+Writing (ORDER MATTERS):
+  w.Header().Set("Content-Type", "application/json")  // 1. headers
+  w.WriteHeader(http.StatusCreated)                     // 2. status
+  json.NewEncoder(w).Encode(resp)                        // 3. body
+
+================================================================================
+                    THE MIDDLEWARE PATTERN
+================================================================================
+
+Middleware is a function that takes a Handler and returns a new one:
+
+  func Logging(logger *log.Logger, next http.Handler) http.Handler {
+      return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+          start := time.Now()
+          next.ServeHTTP(w, r)
+          logger.Printf("%s %s (%s)", r.Method, r.URL.Path, time.Since(start))
+      })
+  }
+
+Because input and output are both http.Handler, layers compose:
+  handler := Logging(logger, RequestID(mux))
+
+================================================================================
+                 TESTING: TWO TOOLS, TWO JOBS
+================================================================================
+
+httptest.NewRecorder - fast, in-process, unit-test ONE handler:
+  req := httptest.NewRequest(http.MethodGet, "/hello", nil)
+  rec := httptest.NewRecorder()
+  HelloHandler(rec, req)
+  // rec.Code, rec.Body.String()
+
+httptest.NewServer - real (loopback-only) TCP round trip, tests the WHOLE
+stack:
+  server := httptest.NewServer(mux)
+  defer server.Close()
+  resp, _ := server.Client().Get(server.URL + "/hello")
+
+Both are fully offline - NewRecorder touches no network at all, and
+NewServer binds only to 127.0.0.1 with an OS-assigned port.
+
+================================================================================
+                    CONTEXT AND CONSISTENT ERRORS
+================================================================================
+
+Context (bridging Level 24):
+  ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+  defer cancel()
+  // select on the work finishing vs <-ctx.Done()
+
+Errors (bridging Level 16) - ONE consistent JSON shape everywhere:
+  type errorResponse struct { Error string `json:"error"` }
+
+  func writeError(w http.ResponseWriter, err error) {
+      status := http.StatusInternalServerError
+      switch {
+      case errors.Is(err, ErrNotFound):
+          status = http.StatusNotFound
+      }
+      w.Header().Set("Content-Type", "application/json")
+      w.WriteHeader(status)
+      json.NewEncoder(w).Encode(errorResponse{Error: err.Error()})
+  }
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Calling Write before WriteHeader
+  w.Write([]byte("created"))
+  w.WriteHeader(http.StatusCreated)   // too late - already sent 200!
+
+✅ RIGHT
+  w.WriteHeader(http.StatusCreated)
+  w.Write([]byte("created"))
+
+---
+
+❌ WRONG: Ignoring the JSON decode error
+  json.NewDecoder(r.Body).Decode(&req)   // malformed body goes unnoticed
+
+✅ RIGHT
+  if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+      http.Error(w, "invalid JSON body", http.StatusBadRequest)
+      return
+  }
+
+---
+
+❌ WRONG: A goroutine that ignores context cancellation
+  go func() {
+      time.Sleep(10 * time.Second)   // keeps running even if ctx is done
+      result <- "done"
+  }()
+
+✅ RIGHT: select on ctx.Done() inside the goroutine too
+
+---
+
+❌ WRONG: Not closing an outgoing response body
+  resp, _ := http.Get(someURL)
+  data, _ := io.ReadAll(resp.Body)   // leaks the connection
+
+✅ RIGHT: defer resp.Body.Close() right after checking the error
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the request-lifecycle diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, then the bonus challenges
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Fundamentals, routing, requests/responses, CRUD, middleware, testing,
+     context, errors, best practices, and common mistakes
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Real, verified expected outputs
+
+📄 STUDY_GUIDE.md
+   → The Handler/HandlerFunc relationship diagram
+   → Request lifecycle diagram
+   → ServeMux pattern syntax table
+   → httptest.NewRecorder vs httptest.NewServer comparison
+   → Status code cheat table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Do I need a routing framework to build a real REST API in Go?
+A: Not necessarily - since Go 1.22, http.ServeMux handles method-specific
+   routes and path wildcards natively. Level 28 (Gin) adds convenience on
+   top of exactly this model.
+
+Q: What's the difference between httptest.NewRecorder and NewServer?
+A: NewRecorder is an in-process fake ResponseWriter - fast, no network.
+   NewServer starts a real (loopback-only) TCP server - use it to prove
+   routing and middleware work together end to end.
+
+Q: Why derive context.WithTimeout from r.Context() and not Background()?
+A: r.Context() is already canceled if the client disconnects. Deriving
+   from it means your handler respects BOTH your timeout and the client
+   giving up.
+
+Q: Is any of this exercise verification doing real network access?
+A: No - httptest.NewRecorder touches no network, and httptest.NewServer
+   binds only to 127.0.0.1 with an OS-assigned port. Everything in this
+   level runs fully offline.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 27?
+================================================================================
+
+Level 28: Gin Framework
+  - What a routing framework buys you over hand-rolled http.ServeMux
+  - Gin's context object, route groups, and middleware chains
+  - Binding and validating JSON with struct tags
+  - Building the same kind of REST API faster, with less boilerplate
+
+You'll recognize every concept in Gin because you built it by hand first!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+You're about to turn everything you've learned so far into a real,
+working web service. This is where Go stops being an exercise and starts
+being a job skill.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 28 - Gin Framework
+Estimated completion: 6-8 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- http.Handler is one method: ServeHTTP(w, r) - everything is built on it
+- ServeMux on Go 1.22+ handles method + wildcard routing natively
+- Order matters when writing responses: headers, then status, then body
+- httptest.NewRecorder for unit tests, httptest.NewServer for full stack
+- Derive context.WithTimeout from r.Context(), not context.Background()
+- One consistent JSON error shape, mapped from Go errors with errors.Is
+
+Let's go! 🎉
+
+================================================================================

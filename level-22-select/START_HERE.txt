@@ -1,0 +1,404 @@
+================================================================================
+                          LEVEL 22: SELECT
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 22! You've mastered channels (Level 21) - goroutines can now
+hand values to each other safely. Now it's time to learn SELECT - how to wait
+on MULTIPLE channels at once, and proceed with whichever one is ready first.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What select does and how it differs from switch
+✅ Random tie-breaking among simultaneously-ready cases, verified for real
+✅ The default case for non-blocking channel operations
+✅ Timeouts with time.After
+✅ The done-channel cancellation pattern (context's hand-rolled ancestor)
+✅ select cases that send, not just receive
+✅ select on a closed channel, and the busy-loop risk it creates
+✅ The time.After-in-a-loop leak, and the time.NewTimer fix
+✅ Combining select with for to build a multiplexer/dispatcher
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 22 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 21 (Channels)
+  ✅ Comfortable with unbuffered and buffered channels
+  ✅ Comfortable with closing channels and the comma-ok zero-value check
+  ✅ At least a brief familiarity with nil channels (previewed in Level 21)
+
+If you haven't done Level 21, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - select Basics and Tie-Breaking (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - default and Timeouts (2 hours)
+  → Read README.md Sections 3-4 - 25 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - Cancellation and Send Cases (1.5 hours)
+  → Read README.md Sections 5-6 - 25 min
+  → Complete Exercises 5-6 - 1 hour 5 min
+
+Day 4 - Closed Channels, Timer Leaks, Multiplexing (2 hours)
+  → Read README.md Sections 7-9 - 30 min
+  → Complete Exercises 7-10 - 1.5+ hours
+
+Day 5 - Consolidate (1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is select?
+  → A statement that waits on MULTIPLE channel operations at once
+  → Proceeds with whichever one is ready first
+  → Looks like a switch, behaves nothing like one
+
+Why select Matters:
+  → Level 21 gave you channels, but only for waiting on ONE at a time
+  → Real programs wait on several things simultaneously: incoming work,
+    a shutdown signal, a timeout - select is how you watch all of them
+    with a single statement
+
+================================================================================
+                 BASIC select
+================================================================================
+
+  select {
+  case v := <-ch1:
+      fmt.Println("ch1:", v)
+  case v2 := <-ch2:
+      fmt.Println("ch2:", v2)
+  }
+  // blocks until AT LEAST ONE case is ready,
+  // then runs that case's body
+
+================================================================================
+                 RANDOM TIE-BREAKING
+================================================================================
+
+  If MULTIPLE cases are ready AT THE SAME TIME, Go picks ONE AT RANDOM.
+  It is NOT top-to-bottom like a switch. Verified with a real measurement:
+
+  100,000 trials, both channels pre-filled every time:
+    chA fired: 49,986 times (50.0%)
+    chB fired: 50,014 times (50.0%)
+
+  Roughly even, every run - case order in the source changes nothing.
+
+================================================================================
+                 default: NON-BLOCKING select
+================================================================================
+
+  select {
+  case v := <-ch:
+      use(v)
+  default:
+      // runs IMMEDIATELY if ch had nothing ready
+  }
+
+  WITHOUT default, the select above would BLOCK until ch had something.
+
+================================================================================
+                 TIMEOUTS WITH time.After
+================================================================================
+
+  select {
+  case result := <-work:
+      use(result)
+  case <-time.After(2 * time.Second):
+      fmt.Println("timed out")
+  }
+
+  Whichever channel becomes ready first wins - a timeout is just an
+  ordinary race between two channels.
+
+================================================================================
+                 THE done-CHANNEL CANCELLATION PATTERN
+================================================================================
+
+  func worker(done <-chan struct{}, work <-chan int) {
+      for {
+          select {
+          case <-done:
+              return
+          case w := <-work:
+              process(w)
+          }
+      }
+  }
+
+  close(done) tells EVERY goroutine watching it to stop, on their very
+  next select. This is the direct, hand-rolled ancestor of Go's context
+  package (a later level formalizes exactly this pattern).
+
+================================================================================
+                 THE time.After LEAK GOTCHA
+================================================================================
+
+  ❌ LEAKY: a brand-new timer is created and abandoned every iteration
+    for {
+        select {
+        case v := <-ch:
+            use(v)
+        case <-time.After(d):
+            onTimeout()
+        }
+    }
+
+  ✅ BETTER: one timer, reused
+    timer := time.NewTimer(d)
+    defer timer.Stop()
+    for {
+        if !timer.Stop() {
+            select { case <-timer.C: default: } // drain a pending fire
+        }
+        timer.Reset(d)
+        select {
+        case v := <-ch:
+            use(v)
+        case <-timer.C:
+            onTimeout()
+        }
+    }
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. SELECT
+   Waits on multiple channel operations, proceeds with whichever is
+   ready first. Not a switch - order in the source means nothing.
+
+2. TIE-BREAKING
+   Multiple ready cases -> Go picks ONE AT RANDOM, verified with a
+   real 100,000-trial measurement landing near 50/50.
+
+3. DEFAULT
+   Makes select non-blocking - runs instantly if nothing else is ready.
+
+4. TIMEOUTS
+   case <-time.After(d): as a select arm bounds any wait.
+
+5. CANCELLATION
+   A done channel, closed once, is a broadcast every select-ing
+   goroutine notices immediately - the ancestor of context.
+
+6. NIL CHANNELS
+   A nil channel's case is never ready - the clean way to disable
+   one branch of a select at runtime.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Forgetting default makes select block
+  select {
+  case v := <-ch:
+      use(v)
+  }   // BLOCKS if ch has nothing ready - no default to fall back on
+
+✅ RIGHT: Add default for a non-blocking check
+  select {
+  case v := <-ch:
+      use(v)
+  default:
+      // handle "nothing ready" here
+  }
+
+---
+
+❌ WRONG: Assuming the first case wins when both are ready
+  select {
+  case v := <-ch1:  // NOT guaranteed to win just because it's listed first
+  case v := <-ch2:
+  }
+
+✅ RIGHT: Understand ties are broken randomly - if you need real
+  priority, check the priority channel first with its own
+  non-blocking select/default, THEN fall through to a blocking select
+
+---
+
+❌ WRONG: time.After inside a loop, called every iteration
+  for {
+      select {
+      case v := <-ch:
+          use(v)
+      case <-time.After(d):
+          onTimeout()
+      }
+  }
+
+✅ RIGHT: time.NewTimer once, Stop()/Reset() each pass (see above)
+
+---
+
+❌ WRONG: No way to ever stop an unbounded select loop
+  for {
+      select {
+      case v := <-work:
+          process(v)
+      }
+  }   // runs forever - only way out is killing the process
+
+✅ RIGHT: Always include a done case, counter, or timeout
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-6 (about 45 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the multiplexer diagram and tie-breaking
+  illustration
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises - especially the random tie-breaking
+  measurement and the timer-leak fix, they're the two easiest to get
+  wrong by intuition alone
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → select mechanics, tie-breaking, default, timeouts, cancellation,
+     send cases, closed/nil channels, and multiplexing
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification, including a real measured
+     tie-breaking tally
+
+📄 STUDY_GUIDE.md
+   → select-as-multiplexer diagram
+   → Random tie-breaking illustration
+   → Blocking vs. non-blocking comparison table
+   → Timeout and done-channel flow diagrams
+   → time.After vs. time.NewTimer comparison
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Is select just a switch for channels?
+A: No - a switch compares a value against cases top to bottom. select
+   waits on channel operations and, when several are ready at once,
+   picks one AT RANDOM. Order in the source has no effect.
+
+Q: What happens if nothing is ready and there's no default?
+A: select blocks until at least one case becomes ready - same as a
+   single channel operation would.
+
+Q: Why does time.After in a loop matter if the output looks the same?
+A: Every call creates a brand-new timer that isn't reclaimed until it
+   fires. Fine for a few calls; wasteful in a loop that runs many times.
+   time.NewTimer with Stop()/Reset() reuses one timer instead.
+
+Q: Why would a closed channel's case ever be useful in select?
+A: That's exactly how done-channel cancellation works - closing done
+   makes its case permanently ready, so every watching goroutine
+   notices at once. The risk is only an UNBOUNDED loop that keeps
+   hitting that case without ever checking ok and exiting.
+
+Q: What's a nil channel good for?
+A: Its case is never ready - assigning nil to a channel variable is
+   how you disable one branch of a select at runtime, cleanly.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 22?
+================================================================================
+
+Level 23: Mutex, WaitGroup & Atomic
+  - sync.Mutex and sync.RWMutex for protecting shared state directly
+  - sync.WaitGroup in depth for waiting on many goroutines
+  - The sync/atomic package for lock-free counters and flags
+  - Choosing between channels, mutexes, and atomics for a given problem
+
+You'll keep using channels and select throughout Level 23 - knowing
+when a mutex or atomic is the better tool is the other half of the
+concurrency picture!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-6
+4. Come back and start Exercise 1
+
+select is what lets your goroutines listen to several conversations at
+once. Master it now and Level 23's tools will slot in naturally.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 23 - Mutex, WaitGroup & Atomic
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- select waits on multiple channel operations, proceeds with whichever
+  is ready first - it is not a switch, and case order means nothing
+- Ties between simultaneously-ready cases are broken RANDOMLY
+- default makes any select non-blocking
+- time.After inside a loop leaks timers - prefer time.NewTimer there
+- A done channel, closed once, cancels every goroutine watching it
+
+Let's go! 🎉
+
+================================================================================

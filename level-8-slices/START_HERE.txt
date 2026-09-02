@@ -1,0 +1,383 @@
+================================================================================
+                          LEVEL 8: SLICES
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 8! You've mastered arrays (Level 7) - fixed-size collections
+with value semantics. Now it's time to learn SLICES - the dynamic, flexible
+collection type you'll actually use almost everywhere in real Go code.
+
+A slice is NOT a fixed-size container like an array. A slice is a lightweight
+VIEW into an underlying array: a pointer, a length, and a capacity. That one
+sentence explains almost every "gotcha" you're about to learn.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What a slice really is (pointer + length + capacity, not a container)
+✅ Four ways to create a slice
+✅ The real difference between len() and cap()
+✅ Exactly when append() mutates in place vs. reallocates
+✅ How sub-slices alias (share memory with) their underlying array
+✅ The three-index slice expression and copy() to control aliasing
+✅ The nil-vs-empty-slice distinction
+✅ How to build correct 2D slices without the shared-row bug
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 8 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 7 (Arrays)
+  ✅ Comfortable with array declaration, indexing, and value semantics
+  ✅ Comfortable with for/range loops (from Level 6)
+
+If you haven't done Level 7, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - What a Slice Is & Creating Them (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-3 - 1 hour 20 min
+
+Day 2 - append() and Aliasing (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 4-5 - 1.5 hours
+
+Day 3 - Controlling Aliasing & Special Cases (1.5 hours)
+  → Read README.md Sections 6-8 - 25 min
+  → Complete Exercises 6-8 - 1 hour 5 min
+
+Day 4 - 2D Slices & Real-World Practice (1.5 hours)
+  → Complete Exercises 9-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review append()'s two behaviors
+  → Ask: "Can I predict whether THIS append() will reallocate?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Slice?
+  → A small header: {pointer, length, capacity} pointing INTO an array
+  → NOT the data itself - a VIEW over data that lives somewhere else
+  → Cheap to copy (3 machine words) - which is also why aliasing happens
+
+Why Slices Matter:
+  → Arrays are rigid (fixed size, copied by value) - slices are what you
+    actually pass around, grow, and share in real Go programs
+  → Nearly every standard library function that works with a sequence of
+    data takes a slice, not an array
+
+================================================================================
+                 THE SLICE HEADER (THE KEY IDEA)
+================================================================================
+
+  arr := [6]int{10, 20, 30, 40, 50, 60}
+  s := arr[1:4]
+
+  Underlying array:  [10][20][30][40][50][60]
+  index:               0   1   2   3   4   5
+  s := arr[1:4]            └───s───┘
+                       len(s) = 3   (20, 30, 40)
+                       cap(s) = 5   (20, 30, 40, 50, 60 - to the array's end)
+
+Copying a slice copies the HEADER, not the array. Two slice variables can
+easily point at the very same underlying data.
+
+================================================================================
+                    append() - TWO BEHAVIORS
+================================================================================
+
+  len(s) < cap(s)    → append() WRITES INTO the same underlying array
+  len(s) == cap(s)   → append() ALLOCATES A NEW array and copies everything
+
+  base := make([]int, 3, 5)      // cap=5, room to spare
+  view := base[:2]
+  view = append(view, 999)       // len(view)=2 < cap(view)=5 -> mutates base!
+
+  small := make([]int, 2, 2)     // cap=2, NO room
+  grown := append(small, 30)     // len==cap -> reallocates, small unaffected
+
+KEY GOTCHA: you cannot tell which behavior happened just by reading the
+append() call - it depends on len vs cap AT THAT MOMENT. Never assume either
+way without checking.
+
+================================================================================
+                 ALIASING: SLICING SHARES MEMORY
+================================================================================
+
+  original := []int{1, 2, 3, 4, 5}
+  sub := original[1:4]
+  sub[0] = 999
+  // original is now [1 999 3 4 5] - sub[0] IS original[1]!
+
+Two slices from the same array can even overlap PARTIALLY:
+
+  base := []int{100, 200, 300, 400, 500}
+  left := base[0:3]   // [100 200 300]
+  right := base[2:5]  // [300 400 500]
+  left[2] = 9999
+  // right becomes [9999 400 500] - right[0] IS base[2] IS left[2]!
+
+================================================================================
+              CONTROLLING ALIASING: THREE-INDEX SLICES & copy()
+================================================================================
+
+  safe := s[low:high:max]   // caps capacity: cap = max-low
+                             // forces the NEXT append() to reallocate
+                             // instead of leaking into shared memory
+
+  dst := make([]T, len(src))
+  copy(dst, src)             // TRUE independent copy - no aliasing at all
+
+================================================================================
+                 nil SLICE vs EMPTY SLICE
+================================================================================
+
+  var nilSlice []int      // nilSlice == nil is TRUE
+  emptySlice := []int{}   // emptySlice == nil is FALSE
+
+  Both: len == 0, cap == 0
+  Both: work identically with append(), range, and len()
+
+  Rule: check emptiness with len(s) == 0, not s == nil.
+
+================================================================================
+                    2D SLICES: THE SHARED-ROW BUG
+================================================================================
+
+  ❌ WRONG                          ✅ RIGHT
+
+  row := make([]int, cols)          grid := make([][]int, rows)
+  grid := make([][]int, rows)       for i := range grid {
+  for i := range grid {                 grid[i] = make([]int, cols)
+      grid[i] = row  // same!       }
+  }
+
+  Setting wrong[0][0] = 1 changes EVERY row, because they all share one
+  underlying array. Each row needs its OWN call to make().
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import "fmt"
+
+func main() {
+    nums := []int{1, 2, 3}
+    nums = append(nums, 4, 5)
+    fmt.Println(nums, "len:", len(nums), "cap:", cap(nums))
+
+    sub := nums[1:3]
+    sub[0] = 999
+    fmt.Println(nums) // sub aliases nums - this mutates nums too!
+}
+
+Output:
+  [1 2 3 4 5] len: 5 cap: 6
+  [1 999 3 4 5]
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE HEADER
+   A slice = {pointer, len, cap}. A VIEW, not a container.
+
+2. len() vs cap()
+   len = elements you can see. cap = room before reallocation.
+
+3. append()
+   len < cap  -> mutates in place (shared array)
+   len == cap -> reallocates (new, disconnected array)
+
+4. ALIASING
+   Sub-slices share memory with their source until proven otherwise.
+
+5. CONTROL
+   s[low:high:max] caps capacity. copy() makes a true independent copy.
+
+6. nil vs EMPTY
+   nilSlice == nil is true, emptySlice == nil is false - but len(), range,
+   and append() treat them identically.
+
+7. 2D SLICES
+   Allocate each row with its OWN make() call, inside the loop.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Assuming []int{1,2,3} behaves like [3]int{1,2,3}
+  A slice has no size in its type. An array does. They are different types
+  with different semantics, even though the literals look similar.
+
+✅ RIGHT: Remember the missing number between the brackets IS the whole story
+
+---
+
+❌ WRONG: Assuming append() always mutates the original slice
+  s2 := append(s1, x)   // if len(s1) == cap(s1), this reallocates!
+  s2[0] = 999            // s1 is completely unaffected
+
+✅ RIGHT: Check len vs cap, or just always use the slice append() RETURNS
+
+---
+
+❌ WRONG: Forgetting sub-slices alias their source
+  sub := original[1:4]
+  sub[0] = 999   // also changes original[1] - surprise!
+
+✅ RIGHT: Expect aliasing by default; use copy() when you need independence
+
+---
+
+❌ WRONG: Reusing one row slice for every row of a 2D grid
+  row := make([]int, cols)
+  for i := range grid { grid[i] = row }   // every row is the SAME slice!
+
+✅ RIGHT: grid[i] = make([]int, cols) - a fresh array every iteration
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the slice header and aliasing diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → The slice header, creation, len/cap, append() growth, aliasing,
+     three-index slices, copy(), nil vs empty, and 2D slices - all with
+     real verified output
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Every expected output was actually captured from `go run`
+
+📄 STUDY_GUIDE.md
+   → The slice header diagram
+   → The aliasing diagram
+   → A REAL, actually-observed append() growth table
+   → nil-vs-empty-slice comparison table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Is a slice just a fancy array?
+A: No - a slice is a header (pointer + len + cap) pointing INTO an array
+   that lives elsewhere. The array and the slice are different things.
+
+Q: Why did my append() change a variable I never touched?
+A: If len(s) < cap(s), append() writes into the same underlying array your
+   slice shares with another slice. That's aliasing - not a bug.
+
+Q: How do I know if append() will reallocate?
+A: Compare len(s) and cap(s) right before the call. Equal means it must
+   reallocate. When in doubt, use s[low:high:max] or copy() to be sure.
+
+Q: Is var s []int the same as s := []int{}?
+A: Almost - the first is nil (s == nil is true), the second is not
+   (s == nil is false). Both behave the same under len(), range, append().
+
+Q: Why did every row of my 2D slice change together?
+A: You probably assigned one row slice to every row. Each row needs its
+   own make() call inside the loop.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 8?
+================================================================================
+
+Level 9: Strings & Runes
+  - Strings as immutable byte sequences
+  - Runes and Unicode code points
+  - Converting between strings, []byte, and []rune
+  - Common string-processing patterns
+
+You'll use slices constantly to process strings, runes, and bytes in Level 9!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Slices are the workhorse collection of Go. Master the header/len/cap/append
+mental model now and every future level gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 9 - Strings & Runes
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- A slice is a pointer + len + cap - a VIEW, not a container
+- append() mutates in place when len < cap, reallocates when len == cap
+- Sub-slices alias their underlying array - mutations can be shared
+- Check emptiness with len(s) == 0, not s == nil
+- Every row of a 2D slice needs its own make() call
+
+Let's go! 🎉
+
+================================================================================

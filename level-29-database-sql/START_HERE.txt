@@ -1,0 +1,356 @@
+================================================================================
+                          LEVEL 29: DATABASE/SQL
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 29! You've mastered the Gin framework (Level 28) - routing
+requests, binding JSON, returning responses. Every API you've built so far
+loses all its data the moment the process restarts. database/sql fixes that:
+Go's standard library way to talk to a real relational database.
+
+SETUP NOTE: This level (along with Level 28: Gin Framework) is the one place
+in this course that needs internet access ONCE, to fetch the modernc.org/sqlite
+driver (pinned at v1.57.0) - a pure-Go SQLite driver, no cgo, no external
+database server required. After that single "go get", every exercise in this
+level runs against an in-memory SQLite database with ZERO network or server
+dependency, exactly like every other level.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ database/sql as an interface over drivers, not a database itself
+✅ sql.Open's laziness, sql.DB as a connection pool, and db.Ping()
+✅ Creating a schema with db.Exec
+✅ Querying multiple rows into structs, and a single row with sql.ErrNoRows
+✅ Writing data safely with parameterized queries - proven against hostile input
+✅ Prepared statements for repeated SQL
+✅ Transactions, verified both committed and rolled back
+✅ Context-aware queries bridging to Level 24
+✅ Connection pool configuration and db.Stats()
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 29 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 28 (Gin Framework)
+  ✅ Comfortable with context.Context (Level 24)
+  ✅ Comfortable with error handling and errors.Is/errors.As (Level 16)
+  ✅ Comfortable writing tests with the testing package (Level 26)
+
+If you haven't done Level 28, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Connecting & Reading Data (2.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-5 - 35 min
+  → Complete Exercises 1-3 - 1 hour 45 min
+
+Day 2 - Writing Data Safely (2 hours)
+  → Read README.md Sections 6-8 - 25 min
+  → Complete Exercises 4-5 - 1.5 hours
+
+Day 3 - Transactions (1.5 hours)
+  → Read README.md Section 9 - 15 min
+  → Complete Exercises 6-7 - 1 hour 15 min
+
+Day 4 - Context & Pools (1.5 hours)
+  → Read README.md Sections 10-12 - 20 min
+  → Complete Exercises 8-9 - 1 hour 10 min
+
+Day 5 - Comprehensive Practice & Consolidate (1.5 hours)
+  → Complete Exercise 10 - 1 hour
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is database/sql?
+  → A standard interface over relational databases: sql.DB, sql.Rows,
+    sql.Tx, and friends - paired with a driver that does the real talking
+  → The driver is a separate module, imported purely for its side effect
+    (blank import: _ "modernc.org/sqlite") to register itself
+
+Why database/sql Matters:
+  → Every API and program you've built so far has kept data in memory,
+    gone the instant the process exits
+  → This is how real applications persist data between runs, across
+    restarts, and across many concurrent users
+
+================================================================================
+                 CONNECTING: LAZY OPEN, EAGER PING
+================================================================================
+
+  db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+  defer db.Close()
+  db.SetMaxOpenConns(1)   // in-memory SQLite needs exactly ONE connection
+
+  db.Ping()   // sql.Open does NOT verify connectivity - Ping() does, right now
+
+  sql.DB is a POOL, not a single connection. Query/Exec/QueryRow each borrow
+  a connection, use it, and return it - you almost never touch one directly.
+
+  THE SQLITE GOTCHA: plain ":memory:" gives every new pooled connection its
+  OWN separate, empty database. file::memory:?cache=shared + SetMaxOpenConns(1)
+  routes every call through the SAME connection, avoiding this entirely.
+
+================================================================================
+                 READING DATA: QUERY VS QUERYROW
+================================================================================
+
+  Many rows expected:
+    rows, err := db.Query(`SELECT id, title FROM books`)
+    defer rows.Close()                    // ALWAYS
+    for rows.Next() {
+        rows.Scan(&id, &title)
+    }
+    if err := rows.Err(); err != nil { }  // check AFTER the loop too
+
+  Zero-or-one row expected:
+    var title string
+    err := db.QueryRow(`SELECT title FROM books WHERE id = ?`, id).Scan(&title)
+    if errors.Is(err, sql.ErrNoRows) {
+        // NOT FOUND is a normal case, not a crash
+    }
+
+================================================================================
+                 WRITING DATA: ALWAYS PARAMETERIZED
+================================================================================
+
+  result, err := db.Exec(`INSERT INTO books (title) VALUES (?)`, title)
+  id, _ := result.LastInsertId()
+  affected, _ := result.RowsAffected()
+
+  THE ONE RULE, NO EXCEPTIONS:
+    ✅ db.Query(`WHERE author = ?`, userInput)          -- SAFE
+    ❌ fmt.Sprintf(`WHERE author = '%s'`, userInput)     -- NEVER
+
+  Verified in Exercise 4: passing a string that LOOKS like a SQL injection
+  attempt through the parameterized path returns zero rows - it's compared
+  literally, as data, and never gets to alter the query's structure.
+
+================================================================================
+                 TRANSACTIONS: DEFER-ROLLBACK-IF-NOT-COMMITTED
+================================================================================
+
+  tx, err := db.Begin()
+  committed := false
+  defer func() {
+      if !committed {
+          tx.Rollback()      // safety net - runs on ANY early return
+      }
+  }()
+
+  tx.Exec(...)   // step 1
+  tx.Exec(...)   // step 2
+
+  tx.Commit()
+  committed = true
+
+  Verified for real (Exercise 7): a CHECK constraint rejects a mid-transaction
+  UPDATE, the deferred Rollback() runs, and stock/order counts end up EXACTLY
+  where they started - not partially applied.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE INTERFACE
+   database/sql + a blank-imported driver (_ "modernc.org/sqlite")
+
+2. THE POOL
+   sql.Open is lazy; sql.DB is a pool; db.Ping() verifies eagerly
+
+3. READING
+   Query for many rows (Close+Err!), QueryRow for one (watch ErrNoRows)
+
+4. WRITING
+   Exec + sql.Result, ALWAYS parameterized with ? placeholders
+
+5. STRUCTURE
+   Prepared statements for repeated SQL; transactions for atomicity
+
+6. CANCELLATION
+   The *Context family (QueryContext, ExecContext, ...) - Level 24 bridge
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Forgetting rows.Close()
+  rows, _ := db.Query(`SELECT * FROM books`)
+  for rows.Next() { }   // connection leaked back to the pool late, or never
+
+✅ RIGHT
+  rows, err := db.Query(`SELECT * FROM books`)
+  defer rows.Close()
+
+---
+
+❌ WRONG: String-concatenating SQL
+  query := "SELECT * FROM books WHERE title = '" + userInput + "'"
+
+✅ RIGHT
+  db.Query(`SELECT * FROM books WHERE title = ?`, userInput)
+
+---
+
+❌ WRONG: Forgetting sql.ErrNoRows
+  err := db.QueryRow(`...`, id).Scan(&b)
+  if err != nil {
+      log.Fatal(err)   // crashes just because id didn't exist!
+  }
+
+✅ RIGHT
+  if errors.Is(err, sql.ErrNoRows) {
+      // handle "not found" as a normal case
+  }
+
+---
+
+❌ WRONG: Forgetting to Commit or Rollback
+  tx, _ := db.Begin()
+  tx.Exec(`UPDATE ...`)
+  // ... nothing else - connection held forever
+
+✅ RIGHT: the defer-rollback-if-not-committed pattern, every transaction
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-6 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the connection pool and rows lifecycle diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1 - it fetches the driver
+  (the one internet-dependent step in this level) and creates your first table
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, including Exercise 10's fully-tested
+  bookstore data layer
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → database/sql, drivers, pooling, reading/writing data, transactions, context
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Real, verified expected outputs (go run and go test -v) for every exercise
+
+📄 STUDY_GUIDE.md
+   → sql.DB-as-connection-pool diagram
+   → Query vs QueryRow vs Exec decision table
+   → rows.Next()/Scan()/Close()/Err() lifecycle diagram
+   → Transaction commit/rollback flow diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why do I need a separate driver module for a "standard library" package?
+A: database/sql only defines the interface. The driver (modernc.org/sqlite,
+   blank-imported) is what actually speaks the database's protocol.
+
+Q: Does sql.Open fail immediately if the database is unreachable?
+A: No - it's lazy. Call db.Ping() right after if you need to know now.
+
+Q: Why file::memory:?cache=shared instead of plain :memory:?
+A: sql.DB is a connection pool. Plain :memory: gives every new pooled
+   connection its own separate, empty database. The shared-cache DSN plus
+   SetMaxOpenConns(1) fixes that by routing everything through one connection.
+
+Q: What's the one rule that prevents SQL injection?
+A: Every value goes through a ? placeholder, passed as a separate argument -
+   never string-concatenated or Sprintf'd into the SQL text.
+
+Q: How do I know a rollback actually undid everything?
+A: Exercise 7 verifies it for real - a failed mid-transaction UPDATE gets
+   rolled back, and the affected row ends up exactly where it started.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 29?
+================================================================================
+
+Level 30: Repository-Service-Handler
+  - Structuring a real application into repository, service, and handler layers
+  - Turning this level's free CRUD functions into a proper repository interface
+  - Wiring that repository into Gin (Level 28) handlers through a service layer
+
+You'll build directly on Exercise 10's bookstore data layer in Level 30!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-6
+4. Come back and start Exercise 1
+
+database/sql is how your programs finally remember things between runs.
+Master it now and Level 30's layered architecture will feel natural.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 30 - Repository-Service-Handler
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- database/sql is an interface over drivers - always pair it with a
+  blank-imported driver like _ "modernc.org/sqlite"
+- sql.Open is lazy; sql.DB is a connection pool; db.Ping() verifies eagerly
+- Every value goes through a ? placeholder - no exceptions, ever
+- The defer-rollback-if-not-committed pattern belongs in every transaction
+
+Let's go! 🎉
+
+================================================================================

@@ -1,0 +1,376 @@
+================================================================================
+                          LEVEL 19: JSON
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 19! You've mastered file handling (Level 18) - reading and
+writing bytes and text with os and bufio. Now it's time to give those bytes
+STRUCTURE: JSON, the format almost every API, config file, and log line
+on the planet speaks.
+
+Go's standard library, encoding/json, is the idiomatic way to convert Go
+values to JSON (marshaling) and JSON back into Go values (unmarshaling).
+No external libraries needed - this level uses only the standard library.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What JSON is and why encoding/json is the standard way to (de)serialize
+✅ json.Marshal: struct -> JSON bytes (exported fields only!)
+✅ Struct tags: json:"name", json:"-", omitempty
+✅ json.Unmarshal: JSON bytes -> struct, with a verified round trip
+✅ Nested structs and slices of structs (a realistic Order + LineItems)
+✅ json.MarshalIndent for pretty-printing
+✅ Dynamic JSON with map[string]interface{} and type assertions
+✅ json.RawMessage for deferring/partial parsing
+✅ Streaming JSON with json.Decoder / json.Encoder
+✅ Custom marshaling: MarshalJSON() / UnmarshalJSON()
+✅ Real json.SyntaxError and json.UnmarshalTypeError messages
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 19 Duration: 5-6 hours
+- Theory & Concepts: 1.5-2 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 18 (File Handling) - os/bufio file I/O
+  ✅ Comfortable with exported/unexported fields (Level 2)
+  ✅ Recognize struct tag syntax (Level 13 gave you a first look)
+  ✅ Comfortable with type assertions (Level 15)
+  ✅ Comfortable with error values (Level 16)
+
+If you haven't done Level 18, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Marshal, Unmarshal & Tags (2.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-4 - 40 min
+  → Complete Exercises 1-3 - 1 hour 40 min
+
+Day 2 - Nesting & Pretty-Printing (1.5 hours)
+  → Read README.md Sections 5-6 - 20 min
+  → Complete Exercises 4-5 - 1 hour 10 min
+
+Day 3 - Dynamic JSON & RawMessage (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 6-7 - 1 hour 35 min
+
+Day 4 - Streaming & Custom Marshaling (2 hours)
+  → Read README.md Sections 9-10 - 25 min
+  → Complete Exercises 8-9 - 1 hour 35 min
+
+Day 5 - Errors & Comprehensive Practice (2 hours)
+  → Read README.md Sections 11-13 - 25 min
+  → Complete Exercise 10 - 1 hour 35 min
+
+Day 6 - Consolidate (1.5 hours)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md and STUDY_GUIDE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is JSON?
+  → A lightweight, text-based data format: objects {}, arrays [], strings,
+    numbers, booleans, and null - that's the entire vocabulary
+  → The default language of APIs, config files, and logs across every
+    mainstream programming language
+
+Why encoding/json Matters:
+  → It's how your Go programs exchange structured data with the rest of
+    the world - REST APIs (Level 27), config files, saved application state
+  → It builds directly on things you already know: exported fields
+    (Level 2), struct tags (Level 13), type assertions (Level 15), and
+    error handling (Level 16)
+
+================================================================================
+                    MARSHAL AND UNMARSHAL
+================================================================================
+
+  data, err := json.Marshal(v)         // Go value -> JSON []byte
+  err := json.Unmarshal(data, &v)      // JSON []byte -> Go value
+
+  type Person struct {
+      Name string
+      Age  int
+      City string
+  }
+
+  p := Person{Name: "Alice", Age: 30, City: "Lisbon"}
+  data, _ := json.Marshal(p)
+  fmt.Println(string(data))
+  // {"Name":"Alice","Age":30,"City":"Lisbon"}
+
+KEY RULE - only EXPORTED fields are (un)marshaled. This is Level 2's
+exported/unexported rule again: a lowercase field is silently skipped,
+no error, ever.
+
+================================================================================
+                     STRUCT TAGS FOR JSON
+================================================================================
+
+  type User struct {
+      Name  string `json:"name"`             // renamed
+      Email string `json:"-"`                // excluded entirely
+      Bio   string `json:"bio,omitempty"`    // omitted if zero value
+  }
+
+Verified:
+  Full struct:       {"name":"Alice","bio":"hi"}
+  Empty bio omitted: {"name":"Alice"}
+
+================================================================================
+                 DYNAMIC JSON: THE TYPE-ASSERTION DANCE
+================================================================================
+
+When you don't know the JSON's shape ahead of time, unmarshal into
+map[string]interface{} and use Level 15's type assertions to get values out:
+
+  var v map[string]interface{}
+  json.Unmarshal(data, &v)
+
+  name, ok := v["name"].(string)     // safe two-value form
+  count, ok := v["count"].(float64)  // JSON numbers are ALWAYS float64!
+
+KEY GOTCHA - JSON numbers inside interface{} are always float64, never int.
+Asserting .( int) on a JSON number PANICS. Always use .(float64) and
+convert if you need an int.
+
+================================================================================
+                 RAWMESSAGE AND STREAMING
+================================================================================
+
+json.RawMessage defers parsing a sub-object until you know its shape
+(e.g., based on a "kind" field) - a two-stage parse.
+
+json.Decoder / json.Encoder stream JSON to/from an io.Reader/io.Writer -
+useful for files (Level 18!), network connections, or reading many JSON
+values one at a time instead of loading everything into memory first.
+
+  dec := json.NewDecoder(reader)
+  for dec.More() {
+      var v MyType
+      dec.Decode(&v)
+  }
+
+================================================================================
+                    CUSTOM MARSHALING
+================================================================================
+
+Implement these two methods to take full control of a type's JSON format:
+
+  func (t MyType) MarshalJSON() ([]byte, error) { ... }   // value receiver
+  func (t *MyType) UnmarshalJSON(data []byte) error { ... } // pointer receiver
+
+Common uses: enum-like types serialized as strings, custom date formats,
+values that need validation on the way in.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. MARSHAL / UNMARSHAL
+   json.Marshal(v) / json.Unmarshal(data, &v) - the core pair
+
+2. STRUCT TAGS
+   json:"name", json:"-", json:"name,omitempty"
+
+3. NESTING
+   Nested structs and slices of structs (un)marshal recursively
+
+4. DYNAMIC JSON
+   map[string]interface{} + type assertions (numbers are always float64)
+
+5. RAWMESSAGE & STREAMING
+   Deferred parsing for polymorphic JSON; Decoder/Encoder for io.Reader/Writer
+
+6. CUSTOM MARSHALING
+   MarshalJSON (value receiver) / UnmarshalJSON (pointer receiver)
+
+7. ERRORS
+   *json.SyntaxError (malformed JSON), *json.UnmarshalTypeError (wrong shape)
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Unexported field, expecting it in JSON
+  type T struct { name string }   // never appears in Marshal output!
+
+✅ RIGHT
+  type T struct { Name string `json:"name"` }
+
+---
+
+❌ WRONG: omitempty hiding a meaningful zero value
+  type Account struct {
+      Balance float64 `json:"balance,omitempty"`
+  }
+  // a real $0 balance vanishes from the JSON - can't tell zero from unset!
+
+✅ RIGHT: drop omitempty when zero is a valid, meaningful value
+
+---
+
+❌ WRONG: Ignoring the error
+  data, _ := json.Marshal(v)
+  json.Unmarshal(input, &v)
+
+✅ RIGHT
+  data, err := json.Marshal(v)
+  if err != nil { /* handle */ }
+
+---
+
+❌ WRONG: Asserting a JSON number as int from interface{}
+  count := v["count"].(int)   // PANICS - it's float64!
+
+✅ RIGHT
+  count := v["count"].(float64)
+
+---
+
+❌ WRONG: Forgetting the pointer in Unmarshal
+  json.Unmarshal(data, c)     // compile error
+
+✅ RIGHT
+  json.Unmarshal(data, &c)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the type mapping table and diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises plus the bonus challenges
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Marshal/Unmarshal, tags, nesting, dynamic JSON, RawMessage, streaming,
+     custom marshaling, and real verified error messages
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification (all captured from real runs)
+
+📄 STUDY_GUIDE.md
+   → Struct tag syntax reference
+   → Go type <-> JSON type mapping table
+   → Marshal/Unmarshal round-trip diagram
+   → Dynamic JSON navigation diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Do I need a third-party JSON library?
+A: No. encoding/json in the standard library covers the vast majority of
+   real-world work.
+
+Q: Why did a field just disappear from my JSON?
+A: Either it's unexported (lowercase - invisible to encoding/json), or it
+   has omitempty and holds its zero value.
+
+Q: Why is my number a float when I expected an int?
+A: Unmarshaling into interface{} always produces float64 for JSON numbers.
+   Convert explicitly, or unmarshal into a struct with a typed int field.
+
+Q: map[string]interface{} or a struct?
+A: A struct whenever you know the shape - safer, clearer. Reach for
+   map[string]interface{} only when the shape is genuinely unknown.
+
+Q: Unmarshal vs Decoder - what's the difference?
+A: Unmarshal works on a complete []byte already in memory. Decoder reads
+   from an io.Reader and can decode a stream of many JSON values one at
+   a time - more efficient for large or incremental data.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 19?
+================================================================================
+
+Level 20: Goroutines
+  - Concurrent execution with the go keyword
+  - How goroutines differ from OS threads
+  - The foundation for channels, select, and sync (Levels 21-23)
+
+You'll use JSON constantly once you build APIs (Level 27) and work with
+concurrent data pipelines later in the course!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+JSON is how your programs talk to the rest of the world. Master it now and
+every future level involving APIs, configs, or data interchange gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 20 - Goroutines
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- Only EXPORTED fields are marshaled/unmarshaled - ever
+- Struct tags are your control surface: rename, exclude, omitempty
+- JSON numbers inside interface{} are ALWAYS float64, never int
+- Unmarshal needs a POINTER - Marshal just needs a value
+- Always check the error - JSON usually comes from outside your program
+
+Let's go! 🎉
+
+================================================================================

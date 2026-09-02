@@ -1,0 +1,349 @@
+================================================================================
+                          LEVEL 24: CONTEXT
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 24! You've mastered sync.Mutex, sync.WaitGroup, and atomic
+operations (Level 23) - you can protect shared state and wait for goroutines
+to finish. Level 22's select taught you the "done channel" pattern: a
+goroutine that watches a chan struct{} alongside its real work and stops the
+moment that channel closes.
+
+context.Context takes that exact idea and formalizes it into Go's standard
+way to carry cancellation signals, deadlines, and (sparingly) request-scoped
+values through an entire call graph - across function calls AND goroutines.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What context.Context is for, and how it formalizes the done-channel pattern
+✅ context.Background() vs. context.TODO() - the two root contexts
+✅ context.WithCancel for manual cancellation, verified with a real goroutine
+✅ context.WithTimeout and context.WithDeadline, with real elapsed-time proof
+✅ Distinguishing context.Canceled from context.DeadlineExceeded via ctx.Err()
+✅ The ctx.Done()-select pattern for racing real work against cancellation
+✅ context.WithValue with a typed key - and the string-key collision it avoids
+✅ Why defer cancel() matters, backed by a real go vet warning
+✅ Propagating one context through a call chain and a fan-out of goroutines
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 24 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 23 (Mutex, WaitGroup & Atomic)
+  ✅ Comfortable protecting shared state and waiting on goroutines
+  ✅ Comfortable with channels and select, including Level 22's
+     "done channel" cancellation pattern
+
+If you haven't done Level 23, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Root Contexts & Manual Cancellation (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - Timeouts, Deadlines & Err() (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 3-5 - 1.5 hours
+
+Day 3 - The select Pattern & WithValue (1.5 hours)
+  → Read README.md Sections 6-7 - 25 min
+  → Complete Exercises 6-7 - 1 hour 5 min
+
+Day 4 - Discipline, Propagation & the Handler Preview (2 hours)
+  → Read README.md Sections 8-10 - 25 min
+  → Complete Exercises 8-10 - 1.5+ hours
+
+Day 5 - Consolidate (0.5-1 hours)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is context.Context?
+  → A standard interface carrying cancellation, deadlines, and (sparingly)
+    request-scoped values through a call graph
+  → The formalized version of Level 22's "done channel" - Done(), Err(),
+    Deadline(), and Value() replace a bespoke chan struct{} per operation
+
+Why Context Matters:
+  → Level 22 showed you how to build cancellation by hand with a channel
+  → Every real function - yours, the standard library's, third-party
+    packages' - needs the SAME shape to compose safely
+  → Context IS that shared shape: pass it down, cancel it once, and every
+    downstream piece of work that's paying attention stops together
+
+================================================================================
+                 THE TWO ROOT CONTEXTS
+================================================================================
+
+  ctx := context.Background()   // the real root - main(), tests, true entry points
+  ctx := context.TODO()         // placeholder - "context plumbing still needed here"
+
+  Both behave identically at runtime (never canceled, no deadline, no value) -
+  the difference is purely documentation of intent for readers and reviewers.
+
+================================================================================
+                 DERIVING CANCELABLE CONTEXTS
+================================================================================
+
+  ctx, cancel := context.WithCancel(parent)                 // manual cancel
+  ctx, cancel := context.WithTimeout(parent, 5*time.Second) // auto after a duration
+  ctx, cancel := context.WithDeadline(parent, someTime)     // auto at an absolute time
+
+  defer cancel()   // ALWAYS - even for the self-canceling WithTimeout/WithDeadline!
+
+  Skipping this leaves the context and its internal timer alive for the
+  ENTIRE requested duration, even after your work is done. go vet catches
+  it for real:
+
+    "the cancel function returned by context.WithTimeout should be called,
+     not discarded, to avoid a context leak"
+
+================================================================================
+                 ctx.Err(): CANCELED VS DEADLINE EXCEEDED
+================================================================================
+
+  ctx.Err() returns:
+    nil                          → still active
+    context.Canceled             → cancel() was called manually
+    context.DeadlineExceeded     → a timeout/deadline elapsed on its own
+
+  errors.Is(ctx.Err(), context.Canceled)          // idiomatic check
+  errors.Is(ctx.Err(), context.DeadlineExceeded)  // idiomatic check
+
+================================================================================
+                 THE ctx.Done() select PATTERN
+================================================================================
+
+  select {
+  case <-ctx.Done():
+      return ctx.Err()      // canceled or timed out - stop now
+  case result := <-workCh:
+      // real work finished first - use it
+  }
+
+  Apply this at EVERY blocking point in long-running work - including when
+  sending a result - or a canceled caller can still leave you stuck forever.
+
+================================================================================
+                 context.WithValue: TYPED KEYS ONLY
+================================================================================
+
+  type requestIDKey struct{}   // unexported, unique type
+
+  ctx = context.WithValue(ctx, requestIDKey{}, "req-123")
+  id, ok := ctx.Value(requestIDKey{}).(string)
+
+  NEVER use a plain string as a key - two unrelated packages using the same
+  string key will silently overwrite each other's values, with no error, at
+  runtime. A typed unexported key makes that collision impossible.
+
+  Use context.Value ONLY for cross-cutting metadata (trace IDs, request
+  IDs) - NEVER for parameters your function actually needs to do its job.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. ROOT CONTEXTS
+   Background() for real roots, TODO() as an honest placeholder.
+
+2. DERIVATION
+   WithCancel/WithTimeout/WithDeadline all return (ctx, cancel).
+   ALWAYS defer cancel(), even for self-canceling ones.
+
+3. INSPECTION
+   Done() to wait, Err() to learn why, Deadline() to check the cutoff.
+
+4. VALUES
+   A narrow, typed-key-only escape hatch - never for business parameters.
+
+5. PROPAGATION
+   One context, shared cheaply by value, fans out to any number of
+   goroutines - cancel it once, they all stop together.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Forgetting defer cancel()
+  ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+
+✅ RIGHT
+  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+  defer cancel()
+
+---
+
+❌ WRONG: Business parameters hidden in context.Value
+  func ProcessOrder(ctx context.Context) error {
+      userID := ctx.Value("userID").(string)   // hidden dependency!
+  }
+
+✅ RIGHT: Explicit parameters
+  func ProcessOrder(ctx context.Context, userID string) error { }
+
+---
+
+❌ WRONG: Recreating Background() mid-chain
+  func fetchData() error {
+      ctx := context.Background()   // breaks the cancellation chain!
+      return db.QueryContext(ctx, "...")
+  }
+
+✅ RIGHT: Forward the real parent context
+  func fetchData(ctx context.Context) error {
+      return db.QueryContext(ctx, "...")
+  }
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-7 (about 50 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the context tree and select pattern diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, including Exercise 8's real go vet
+  warning - it's safe, real, and worth seeing with your own eyes
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Root contexts, cancellation, timeouts/deadlines, WithValue, propagation
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification, including a real captured go vet
+     warning and real measured elapsed times
+
+📄 STUDY_GUIDE.md
+   → Context tree / propagation diagram
+   → WithCancel/WithTimeout/WithDeadline comparison table
+   → ctx.Done()-select pattern diagram
+   → context.Value key-collision diagram (string vs. typed key)
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: What's the difference between context.Background() and context.TODO()?
+A: They behave identically at runtime. Background() marks a genuine root;
+   TODO() marks a spot where real context plumbing still needs wiring up.
+
+Q: Do I need defer cancel() even for WithTimeout, which cancels itself?
+A: Yes - without it, the context and its internal timer stay alive for the
+   FULL timeout duration, even after your work finishes early. go vet
+   flags a discarded WithTimeout cancel as a real leak.
+
+Q: Why can't I just use a string as a context key?
+A: Two unrelated pieces of code using the same string key will silently
+   overwrite each other's values, with no error, at runtime. A typed
+   unexported key type makes that collision impossible.
+
+Q: How is this different from Level 22's done-channel pattern?
+A: Same idea, standardized. Instead of every function inventing its own
+   chan struct{}, context.Context gives every function - yours, the
+   standard library's, anyone's - the same Done()/Err()/Deadline() shape.
+
+Q: Should a struct ever store a context field?
+A: No. A context describes one operation's lifetime, not a struct's.
+   Pass ctx as a method parameter instead.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 24?
+================================================================================
+
+Level 25: Generics
+  - Type parameters for functions and types
+  - Type constraints and the comparable/any built-in constraints
+  - Writing generic data structures and algorithms
+  - When generics help vs. when a plain interface is simpler
+
+You'll write plenty more context-aware code in later levels (HTTP handlers
+in Level 27, database calls in Level 29) - the discipline you build here
+carries forward everywhere!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-7
+4. Come back and start Exercise 1
+
+Context is how your concurrent programs stop exactly when they're told to,
+instead of running forever. Master it now and Level 27's HTTP handlers will
+feel completely natural.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 25 - Generics
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- context.Context formalizes Level 22's done-channel pattern into a
+  standard, composable shape
+- Always defer cancel(), even for self-canceling WithTimeout/WithDeadline
+- context.Value is for cross-cutting metadata only, with typed keys -
+  never for parameters your function actually needs
+- Propagate the real context you were given - never manufacture a fresh
+  Background() partway down a call chain
+
+Let's go! 🎉
+
+================================================================================

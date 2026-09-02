@@ -1,0 +1,347 @@
+================================================================================
+                     LEVEL 32: AUTHENTICATION & JWT
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 32! You've mastered dependency injection (Level 31). Now
+it's time to build something every real API needs: proving who a user is,
+and letting them prove it again on every later request.
+
+================================================================================
+                ⚠️  THIS LEVEL REQUIRES INTERNET ACCESS  ⚠️
+================================================================================
+
+Levels 0-27, 30, and 31 work 100% offline. This level needs TWO third-party
+packages the standard library does not provide:
+
+  - golang.org/x/crypto/bcrypt        (pinned at v0.55.0)  - password hashing
+  - github.com/golang-jwt/jwt/v5      (pinned at v5.3.1)   - JSON Web Tokens
+
+Network access was verified working before writing this level - both
+packages were fetched successfully, and every command, program, and
+"Expected Output" block in this level's materials was actually run with
+`go run` and its output captured for real. Once downloaded, Go caches both
+packages locally so you won't need the network again for the same versions.
+This is only the third level in the course with this requirement, after
+Level 28 (Gin) and Level 29 (database/sql).
+
+If you're offline right now, come back to this level once you have a
+connection.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why passwords are hashed (bcrypt), never encrypted
+✅ The exact three-segment structure of a JWT
+✅ Why a JWT's payload is readable by anyone - encoded, not encrypted
+✅ Registered and custom claims; issuing a signed HS256 token
+✅ Validating a JWT - real signature and expiration errors
+✅ The historical alg:none attack and how to defend against it
+✅ JWT auth middleware that injects claims into request context
+✅ Session-based vs token-based auth tradeoffs, and refresh tokens
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 32 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 31 (Dependency Injection)
+  ✅ Comfortable with Level 27's middleware pattern (func(Handler) Handler)
+  ✅ Comfortable with Level 24's context.WithValue and unexported key types
+  ✅ Internet access, at least for the first `go get` per exercise
+
+If you haven't done Level 31, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Passwords (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Complete Exercises 1-2 - 1 hour 25 min
+
+Day 2 - JWT Fundamentals (2.5 hours)
+  → Read README.md Sections 3-5 - 35 min
+  → Complete Exercises 3-5 - 1 hour 55 min
+
+Day 3 - Security & Rejections (2 hours)
+  → Read README.md Section 6 - 15 min
+  → Complete Exercises 6-8 - 1 hour 45 min
+
+Day 4 - Middleware & Comprehensive Practice (2.5 hours)
+  → Read README.md Section 7 - 20 min
+  → Complete Exercises 9-10 - 2 hours 10 min
+
+Day 5 - Consolidate (1.5 hours)
+  → Read README.md Sections 8-11 - 30 min
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Is Authentication?
+  → Proving who is making a request - and letting them prove it again
+    without resending their password every time
+  → Two building blocks: bcrypt (never store plaintext passwords) and
+    JWT (a compact, signed way to say "this is user X" on every request)
+
+Why This Matters:
+  → Almost every real API needs to know who's calling before deciding
+    what they're allowed to do
+  → Level 27's middleware and Level 24's context are exactly the tools
+    that make this practical in idiomatic Go
+
+================================================================================
+                 PASSWORDS: HASH, NEVER ENCRYPT
+================================================================================
+
+Encryption is two-way (reversible with a key) - wrong for passwords, because
+anyone who steals the key AND the database gets every plaintext password.
+
+Hashing is one-way - bcrypt hashes a password once, and later only compares
+a NEW hash of a guess against the stored one. There's no key to steal that
+undoes it.
+
+  hash, _ := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+  err := bcrypt.CompareHashAndPassword(hash, candidate) // nil == match
+
+Real, verified rejection error for a wrong password:
+
+  crypto/bcrypt: hashedPassword is not the hash of the given password
+
+================================================================================
+                    JWT: SIGNED, NOT SEALED
+================================================================================
+
+A JWT is three base64url segments: header.payload.signature
+
+  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTQyIn0.dNflZCu...
+
+The header and payload are only ENCODED - readable by anyone, no secret
+needed. This was verified directly: decoding a real token's payload with
+nothing but base64url, no secret involved, printed every claim in plain
+JSON. NEVER put a secret inside a JWT's claims.
+
+The signature is what the secret protects - it proves the header+payload
+weren't altered since signing. It does NOT hide them.
+
+================================================================================
+                 VALIDATING: THREE REAL FAILURE MODES
+================================================================================
+
+  jwt.ParseWithClaims(token, claims, keyfunc)
+
+  A tampered token (one signature character flipped):
+    "token signature is invalid: signature is invalid"
+
+  An expired token (exp in the past):
+    "token has invalid claims: token is expired"
+
+  A forged alg:none token (no signature at all):
+    "unexpected signing method: none (only HMAC is accepted)"
+    - REJECTED because the keyfunc hard-codes the accepted algorithm,
+      never trusting the token's own header to decide.
+
+================================================================================
+                    AUTH MIDDLEWARE IN ONE PICTURE
+================================================================================
+
+  Authorization: Bearer <token>
+        │
+        ▼
+  Missing/malformed? ──────────────► 401
+        │
+        ▼
+  jwt.ParseWithClaims + keyfunc
+        │
+        ├─ bad signature / expired / bad alg ──► 401
+        │
+        ▼
+  context.WithValue(ctx, claimsContextKey{}, claims)
+        │
+        ▼
+  downstream handler reads r.Context().Value(claimsContextKey{})
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. PASSWORDS
+   Hash with bcrypt, never encrypt. Auto-salted, deliberately slow.
+
+2. JWT STRUCTURE
+   header.payload.signature - encoded, not encrypted. Never put secrets
+   in claims.
+
+3. VALIDATION
+   Always check signature, always check expiration, always pin the
+   accepted algorithm yourself.
+
+4. THE alg:none LESSON
+   The verifier decides how to verify - never the token's own header.
+
+5. MIDDLEWARE
+   Extract Bearer token -> validate -> inject claims via context.WithValue
+   with an unexported key type (Level 24's pattern).
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Assuming a JWT is encrypted
+  "It's signed, so nobody can read the payload." - false, see above.
+
+❌ WRONG: Skipping expiration checks
+  Trusting a valid signature forever, ignoring exp.
+
+❌ WRONG: Hardcoded/weak signing secrets
+  var secret = []byte("secret123")
+
+✅ RIGHT: Long, random secret from environment (Level 34 covers this)
+
+❌ WRONG: Trusting the token's own alg header
+  return lookupKeyFor(t.Header["alg"])
+
+✅ RIGHT: Hard-code the accepted method type in your keyfunc
+
+❌ WRONG: Plaintext or weakly-hashed passwords
+  storePassword(password) or storePassword(sha256(password))
+
+✅ RIGHT: bcrypt.GenerateFromPassword
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Confirm Internet Access
+  Try: go get golang.org/x/crypto/bcrypt@v0.55.0 in a scratch directory
+
+Step 2: Read
+  Open README.md and read Sections 1-6 (about 1.5 hours)
+
+Step 3: Look at Diagrams
+  Open STUDY_GUIDE.md and study the bcrypt flow and JWT structure diagrams
+
+Step 4: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 5: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 6: Complete All
+  Try to complete all 10 exercises, then the bonus challenges
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview, the internet-access requirement, and quick start guide
+
+📄 README.md
+   → Full theory: hashing, bcrypt, JWT structure, claims, validation,
+     the alg:none attack, middleware, session-vs-JWT, refresh tokens
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Real, captured expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → bcrypt hash-and-compare flow diagram
+   → JWT structure diagram (encoded vs signed)
+   → Auth middleware request-flow diagram
+   → Session-vs-JWT comparison table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → bcrypt and JWT API at a glance
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Is a JWT encrypted?
+A: No. Header and payload are base64url-encoded, decodable by anyone with
+   no key. Only the signature needs the secret, and it proves integrity,
+   not secrecy.
+
+Q: Why bcrypt instead of a fast hash like SHA-256?
+A: Fast hashes let attackers try billions of password guesses per second
+   against a stolen hash. bcrypt is deliberately slow and auto-salts.
+
+Q: Can I revoke a JWT before it expires?
+A: Not natively - the biggest JWT tradeoff versus sessions. Mitigate with
+   short expirations plus the refresh-token pattern (Section 9 of README).
+
+Q: What was the alg:none vulnerability?
+A: A verifier that trusted the token's own "alg" header could be tricked
+   into accepting an unsigned, attacker-edited token. Fix: the verifier,
+   not the token, decides the accepted algorithm - always.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 32?
+================================================================================
+
+Level 33: Logging
+  - Structured logging and log levels
+  - Correlating logs with the identity this level now carries in context
+
+You'll use the identity and context patterns from this level constantly
+once Level 33 adds structured logging on top!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Confirm you have internet access
+2. Close this file
+3. Open README.md
+4. Read Sections 1-6
+5. Come back and start Exercise 1
+
+Authentication is how your programs answer "who is this?" safely. Master
+it now, and every future API you build starts from a solid foundation.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 33 - Logging
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- Hash passwords with bcrypt, never encrypt them
+- A JWT is signed, not sealed - anyone can read the payload
+- Always check expiration, always pin the accepted algorithm yourself
+- Never put secrets inside JWT claims
+
+Let's go! 🎉
+
+================================================================================

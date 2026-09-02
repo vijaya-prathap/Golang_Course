@@ -1,0 +1,417 @@
+================================================================================
+                    LEVEL 4: OPERATORS & EXPRESSIONS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 4! You've completed variables and types (Level 3). Now it's
+time to learn about OPERATORS and EXPRESSIONS - how to actually DO things
+with the values you've been storing.
+
+An OPERATOR performs an action on one or more values.
+An EXPRESSION is code that produces a value.
+
+Example: 5 + 3 is an expression that uses the + operator and produces 8.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Arithmetic operators (+, -, *, /, %) and integer division truncation
+✅ Comparison operators (==, !=, <, >, <=, >=)
+✅ Logical operators (&&, ||, !) and short-circuit evaluation
+✅ Bitwise operators (&, |, ^, <<, >>) and bit-flag systems
+✅ Assignment operators (+=, -=, ++, --, etc.)
+✅ Operator precedence (what runs first)
+✅ How to build and evaluate expressions
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 4 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐ (Intermediate)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 3 (Variables & Data Types)
+  ✅ Understand Go's basic types (int, float64, string, bool)
+  ✅ Can declare variables with var and :=
+  ✅ Understand type conversion and constants
+
+If you haven't done Level 3, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Arithmetic & Comparison (1.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 30 min
+  → Complete Exercises 1-3 - 50 min
+
+Day 2 - Logical & Bitwise (2 hours)
+  → Read README.md Sections 3-4 - 30 min
+  → Complete Exercises 4-5 - 1.5 hours
+
+Day 3 - Assignment, Precedence & Short-Circuit (2 hours)
+  → Read README.md Sections 5-8 - 40 min
+  → Complete Exercises 6-8 - 1.5 hours
+
+Day 4 - Real-World Practice (1.5 hours)
+  → Complete Exercises 9-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review precedence and short-circuit rules
+  → Ask: "Can I predict the output before running the code?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is an Operator?
+  → A symbol that performs an action on values (+, -, ==, &&, etc.)
+  → Operators combine with values to form EXPRESSIONS
+  → An expression always produces a value with a type
+
+Five Operator Families:
+  Arithmetic  → + - * / %          (work on numbers, produce numbers)
+  Comparison  → == != < > <= >=    (work on any comparable type, produce bool)
+  Logical     → && || !            (work on bool, produce bool)
+  Bitwise     → & | ^ << >>        (work on integers, produce integers)
+  Assignment  → = += -= ++ --      (update a variable; not an expression)
+
+Why Operators Matter:
+  → They turn stored values into decisions and calculations
+  → Every if-condition, loop-condition, and formula you'll ever write
+    depends on operators
+
+================================================================================
+                 ARITHMETIC & THE INTEGER DIVISION TRAP
+================================================================================
+
+This is the MOST IMPORTANT gotcha in Level 4!
+
+  a := 10
+  b := 3
+
+  a + b   → 13
+  a - b   → 7
+  a * b   → 30
+  a / b   → 3      ⚠️ NOT 3.333! Integer division truncates.
+  a % b   → 1      (remainder)
+
+To get a decimal result, convert to float64 BEFORE dividing:
+
+  float64(a) / float64(b)   → 3.3333...
+
+KEY RULE: int / int ALWAYS produces a truncated int, never a rounded value.
+
+================================================================================
+                        COMPARISON OPERATORS
+================================================================================
+
+Comparisons always produce a bool (true or false):
+
+  a == b   equal
+  a != b   not equal
+  a > b    greater than
+  a >= b   greater than or equal
+  a < b    less than
+  a <= b   less than or equal
+
+Strings compare lexicographically (like a dictionary):
+  "abc" < "xyz"        → true
+  "apple" > "apricot"  → false
+  "Apple" == "apple"   → false (case-sensitive!)
+
+================================================================================
+                      LOGICAL OPERATORS
+================================================================================
+
+Logical operators combine boolean values:
+
+  a && b   AND — true only if BOTH are true
+  a || b   OR  — true if AT LEAST ONE is true
+  !a       NOT — flips true/false
+
+Example: validation
+  if age >= 18 && hasLicense {
+      fmt.Println("Can drive")
+  }
+
+SHORT-CIRCUIT EVALUATION (important!):
+  false && (anything)   → the right side is NEVER evaluated
+  true  || (anything)   → the right side is NEVER evaluated
+
+This lets you write safe guards:
+  if b != 0 && a/b > 10 {   // b != 0 checked first, so a/b never panics
+      // safe
+  }
+
+================================================================================
+                      BITWISE OPERATORS
+================================================================================
+
+Bitwise operators work on individual bits of integers. Common for flags:
+
+  const (
+      Read   = 1 << iota  // 1 (001)
+      Write              // 2 (010)
+      Execute            // 4 (100)
+  )
+
+  perms := Read | Write         // grant multiple:    011
+  hasRead := perms&Read == Read // check a flag:       true
+  perms |= Execute               // grant one more:    111
+  perms &^= Write                 // revoke one:        101
+
+Shifts:
+  x << n   → multiply by 2^n
+  x >> n   → divide by 2^n (positive numbers)
+
+================================================================================
+                    ASSIGNMENT OPERATORS
+================================================================================
+
+Compound assignment shortens "x = x <op> value":
+
+  x += 5    same as   x = x + 5
+  x -= 5    same as   x = x - 5
+  x *= 2    same as   x = x * 2
+  x /= 2    same as   x = x / 2
+  x %= 3    same as   x = x % 3
+
+Increment/decrement are STATEMENTS, not expressions:
+
+  x++       ✅ OK on its own line
+  y := x++  ❌ ERROR - can't use as a value!
+
+================================================================================
+                    OPERATOR PRECEDENCE
+================================================================================
+
+Operators run in a fixed order (highest to lowest):
+
+  1. ()
+  2. ++  --
+  3. *  /  %  &  <<  >>
+  4. +  -  |  ^
+  5. ==  !=  <  >  <=  >=
+  6. &&
+  7. ||
+
+Example:
+  2 + 3 * 4       → 14  (not 20! * runs before +)
+  (2 + 3) * 4     → 20  (parentheses override)
+
+When unsure, ALWAYS use parentheses to make intent explicit.
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import "fmt"
+
+func main() {
+    age := 20
+    hasLicense := true
+
+    canDrive := age >= 18 && hasLicense
+    fmt.Println("Can drive:", canDrive)
+
+    total := 10 + 5*2
+    fmt.Println("Total:", total)
+
+    perms := 1 | 2
+    fmt.Println("Permissions:", perms)
+}
+
+Output:
+  Can drive: true
+  Total: 20
+  Permissions: 3
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. ARITHMETIC
+   +  -  *  /  %      int / int truncates! Convert to float64 for decimals.
+
+2. COMPARISON
+   == != < > <= >=    Always produce bool.
+
+3. LOGICAL
+   && || !            Work on bool. Short-circuit: right side may not run.
+
+4. BITWISE
+   & | ^ << >>        Work on integers. Common for flags and low-level bits.
+
+5. ASSIGNMENT
+   += -= *= /= ++ --  Shortcuts for "x = x <op> value". ++/-- are statements.
+
+6. PRECEDENCE
+   () > ++/-- > */%&<<>> > +-|^ > comparisons > && > ||
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Expecting decimal division
+  avg := 10 / 3          // 3, not 3.33!
+
+✅ RIGHT: Convert first
+  avg := float64(10) / 3
+
+---
+
+❌ WRONG: Ignoring precedence
+  result := 2 + 3 * 4    // 14, easy to misread as 20
+
+✅ RIGHT: Use parentheses for clarity
+  result := (2 + 3) * 4  // now unambiguous
+
+---
+
+❌ WRONG: Unsafe short-circuit order
+  if a/b > 10 && b != 0 { }   // can panic if b == 0!
+
+✅ RIGHT: Guard first
+  if b != 0 && a/b > 10 { }
+
+---
+
+❌ WRONG: Using ++ as an expression
+  y := x++
+
+✅ RIGHT: Increment, then use
+  x++
+  y := x
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and examine the truth tables and bit diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → All operator families explained with examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → Truth tables for logical and bitwise operators
+   → Bit-diagram walkthroughs
+   → Precedence table and decision tree
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does 10 / 3 give 3 instead of 3.33?
+A: Both operands are int, so Go performs integer division and truncates.
+   Convert to float64 first for a precise result.
+
+Q: What's short-circuit evaluation useful for?
+A: Writing safe guard conditions, e.g. checking b != 0 before dividing by b
+   in the very same if statement.
+
+Q: Do I need to memorize the whole precedence table?
+A: Just remember * / % beat + -, and && beats ||. Use parentheses otherwise.
+
+Q: Why would I ever use bitwise operators?
+A: Permission/flag systems, efficient set membership checks, and low-level
+   or protocol work.
+
+Q: Can I write y := x++ ?
+A: No. ++ and -- are statements in Go, not expressions. Increment on its
+   own line, then read the variable separately.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 4?
+================================================================================
+
+Level 5: Conditions (if/else/switch)
+  - if / else if / else statements
+  - switch statements
+  - Using the expressions from Level 4 to make decisions
+
+You'll use every operator from Level 4 constantly in Level 5 and beyond!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Operators are how your programs actually DO something with data. Master
+them now and every future level gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 5 - Conditions (if/else/switch)
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐ (Intermediate)
+
+Remember:
+- int / int truncates - convert to float64 for decimals
+- && and || short-circuit - order matters for safe guards
+- Precedence: () > ++/-- > */%&<<>> > +-|^ > comparisons > && > ||
+- ++ and -- are statements, not expressions
+
+Let's go! 🎉
+
+================================================================================

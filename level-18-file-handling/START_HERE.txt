@@ -1,0 +1,357 @@
+================================================================================
+                      LEVEL 18: FILE HANDLING
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 18! You've learned how to organize code into packages and
+modules (Level 17). Now it's time to make your programs talk to the outside
+world by reading and writing FILES.
+
+Almost every file operation in Go rests on two tiny interfaces you already
+understand the shape of from Level 15: io.Reader and io.Writer. This level
+walks through everything built on top of them - opening, reading, writing,
+buffering, appending, directories, temp files, metadata, and deletion.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ io.Reader/io.Writer - Go's universal I/O abstraction
+✅ Reading and writing whole files, plus streaming large ones
+✅ File permissions (os.FileMode) and what the octal digits mean
+✅ Buffered I/O with bufio.Scanner, bufio.Reader, and bufio.Writer
+✅ Appending to files without truncating them
+✅ Building, listing, and walking directory trees
+✅ Temporary files/directories with safe cleanup
+✅ File metadata (os.Stat) and safe deletion
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 18 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 2.5-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 17 (Packages & Modules)
+  ✅ Comfortable with defer (Level 11) and error handling (Level 16)
+  ✅ Comfortable with interfaces (Level 15)
+
+If you haven't done Level 17, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Reading, Writing & Errors (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 35 min
+  → Complete Exercises 1-3 - 1 hour 15 min
+
+Day 2 - Buffered I/O & Appending (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 4-6 - 1.5 hours
+
+Day 3 - Directories & Trees (1.5 hours)
+  → Read README.md Section 6 - 20 min
+  → Complete Exercises 7-8 - 1 hour 10 min
+
+Day 4 - Temp Files, Metadata & Real-World Practice (2 hours)
+  → Read README.md Sections 7-9 - 25 min
+  → Complete Exercises 9-10 - 1.5 hours
+
+Day 5 - Consolidate (0.5-1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is File Handling?
+  → Reading and writing bytes to persistent storage instead of just
+    keeping data in memory for the life of one program run
+  → Every file operation ultimately boils down to Read(p []byte) and
+    Write(p []byte) - the same two interfaces from Level 15
+
+Why File Handling Matters:
+  → Config files, logs, saved user data, exported reports - almost every
+    real program needs to read or write something on disk
+  → It's also the foundation for Level 19 (JSON), where you'll encode Go
+    values into the bytes you now know how to write to a file
+
+================================================================================
+                 io.Reader / io.Writer: THE CORE IDEA
+================================================================================
+
+  type Reader interface { Read(p []byte) (n int, err error) }
+  type Writer interface { Write(p []byte) (n int, err error) }
+
+  *os.File satisfies BOTH. So does bufio.Reader/Writer, bytes.Buffer,
+  os.Stdin/os.Stdout, and network connections. Learn these two shapes and
+  most of Go's I/O ecosystem clicks into place.
+
+================================================================================
+                 READING AND WRITING FILES
+================================================================================
+
+Whole file, one call:
+
+  data, err := os.ReadFile("config.txt")
+  err = os.WriteFile("output.txt", []byte("hello\n"), 0644)
+
+Manual control (needed for streaming, line-by-line, or appending):
+
+  file, err := os.Open("config.txt")
+  if err != nil { /* handle */ }
+  defer file.Close()
+
+KEY GOTCHA - The real error from a missing file:
+
+  _, err := os.ReadFile("does-not-exist.txt")
+  // err.Error() == "open does-not-exist.txt: no such file or directory"
+
+  Don't compare that string directly - use os.IsNotExist(err) instead,
+  which works the same way across os.Open, os.ReadFile, and os.Stat.
+
+================================================================================
+                 FILE PERMISSIONS
+================================================================================
+
+  0644
+  │└┴┴─ owner=6(rw-)  group=4(r--)  other=4(r--)
+  └──── leading 0 marks this as octal in Go source
+
+  read=4  write=2  execute=1 -- add up the ones that apply, per group.
+
+================================================================================
+                 BUFFERED I/O
+================================================================================
+
+Line by line:
+
+  scanner := bufio.NewScanner(file)
+  for scanner.Scan() {
+      fmt.Println(scanner.Text())
+  }
+  if err := scanner.Err(); err != nil { /* handle */ }
+
+Buffered writer - MUST Flush():
+
+  writer := bufio.NewWriter(file)
+  writer.WriteString("data")
+  writer.Flush()   // buffered data isn't written until this runs!
+
+================================================================================
+                 APPENDING, DIRECTORIES & CLEANUP
+================================================================================
+
+Append without truncating:
+
+  file, _ := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+Build directory trees and portable paths:
+
+  os.MkdirAll("a/b/c", 0755)
+  path := filepath.Join("a", "b", "c.txt")   // NEVER "a" + "/" + "b" + ...
+
+Walk a tree recursively:
+
+  filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+      // ...
+      return nil
+  })
+
+Delete carefully:
+
+  os.Remove("file.txt")     // one file, or one EMPTY directory
+  os.RemoveAll("some/dir")  // path + everything inside - BE CAREFUL
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE INTERFACE
+   io.Reader/io.Writer underlie almost everything in this level.
+
+2. CONVENIENCE VS CONTROL
+   os.ReadFile/os.WriteFile for whole small files.
+   os.Open/os.Create + bufio for streaming, line-by-line, or large files.
+
+3. THE ERROR IDIOM
+   Try the operation, then check os.IsNotExist(err) - don't pre-check
+   existence and don't string-match error text.
+
+4. APPENDING
+   os.OpenFile with O_APPEND|O_CREATE|O_WRONLY - os.WriteFile always
+   truncates.
+
+5. DIRECTORIES
+   filepath.Join for paths, filepath.WalkDir for recursive processing,
+   os.RemoveAll used with real caution.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Never closing a file
+  file, _ := os.Open("data.txt")   // leaked - never closed!
+
+✅ RIGHT
+  file, err := os.Open("data.txt")
+  if err != nil { return err }
+  defer file.Close()
+
+---
+
+❌ WRONG: Concatenating paths with "/"
+  path := dir + "/" + name
+
+✅ RIGHT
+  path := filepath.Join(dir, name)
+
+---
+
+❌ WRONG: Treating a missing file as fatal
+  data, err := os.ReadFile(path)
+  if err != nil { panic(err) }
+
+✅ RIGHT
+  if err != nil && !os.IsNotExist(err) { panic(err) }
+
+---
+
+❌ WRONG: os.RemoveAll on an unchecked path
+  os.RemoveAll(filepath.Join(basePath, "cache"))  // dangerous if basePath == ""
+
+✅ RIGHT: validate basePath is non-empty and expected before deleting
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the flags/permissions tables
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → io.Reader/Writer, reading, writing, buffering, directories, cleanup
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification, all confined to their own folders
+
+📄 STUDY_GUIDE.md
+   → io.Reader/Writer interface diagram
+   → File open flags table, permission octal breakdown table
+   → os vs bufio comparison table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does os.ReadFile's error say "open ... no such file or directory"?
+A: os.ReadFile opens the file internally, so the error is the same one
+   os.Open would produce. It's the real, unmodified OS error, wrapped by Go.
+
+Q: How do I know if a file just doesn't exist yet vs a real problem?
+A: Check os.IsNotExist(err) - it inspects the underlying cause instead of
+   matching error text, so it works portably.
+
+Q: Why can't I just concatenate directory + "/" + filename?
+A: It breaks on Windows (which uses "\") and mishandles trailing slashes.
+   filepath.Join always does the right thing.
+
+Q: What happens if I forget to Flush() a bufio.Writer?
+A: Data sitting in the buffer may never reach the file - especially if the
+   program exits right after writing. Always Flush() before Close().
+
+Q: Why is os.RemoveAll considered dangerous?
+A: It recursively deletes a path and everything under it with zero
+   confirmation. A bug that produces an unexpected (or empty) path can
+   delete far more than you intended.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 18?
+================================================================================
+
+Level 19: JSON
+  - Encoding Go values to JSON and decoding JSON into Go values
+  - Struct tags for controlling field names
+  - Working with nested and dynamic JSON data
+
+You'll use the exact file-reading and file-writing patterns from this level
+to load and save JSON files in Level 19!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Files are how your programs remember things after they exit. Master this
+now and Level 19's JSON encoding/decoding will feel natural.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 19 - JSON
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- io.Reader/io.Writer underlie almost everything in this level
+- os.ReadFile/os.WriteFile for whole small files; os.Open/Create + bufio
+  for streaming, line-by-line, or appending work
+- Check os.IsNotExist(err), don't string-match error text
+- filepath.Join for every path; os.RemoveAll deserves real caution
+
+Let's go! 🎉
+
+================================================================================

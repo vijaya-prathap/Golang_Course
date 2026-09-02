@@ -1,0 +1,369 @@
+================================================================================
+                          LEVEL 33: LOGGING
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 33! You've mastered Level 32 (Authentication & JWT). Now
+it's time to make your programs explain themselves - LOGGING, the difference
+between fmt.Println on your own terminal and a structured record a real
+production system can search, filter, and alert on.
+
+Everything in this level is standard library only: log and log/slog. Fully
+offline, no third-party logging framework.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why structured logging beats scattered fmt.Println calls
+✅ The standard log package - what you've used incidentally, and its limits
+✅ log/slog: Debug/Info/Warn/Error with structured key-value attributes
+✅ TextHandler vs JSONHandler - human-readable vs machine-parseable output
+✅ Filtering noise with a minimum log level
+✅ Structured attributes, grouping, and contextual loggers with .With()
+✅ Carrying a logger through context.Context (bridging Level 24)
+✅ A real, tested request-logging HTTP middleware (building on Level 27)
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 33 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 32 (Authentication & JWT)
+  ✅ Comfortable with HTTP handlers and middleware (Level 27, Level 28)
+  ✅ Comfortable with context.Context and typed context keys (Level 24)
+  ✅ Comfortable with error wrapping (Level 16)
+
+If you haven't done Level 32, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Why Logging Matters & the log Package (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 20 min
+  → Complete Exercise 1 - 30 min
+
+Day 2 - log/slog Basics & Handlers (2 hours)
+  → Read README.md Sections 3-5 - 30 min
+  → Complete Exercises 2-4 - 1.5 hours
+
+Day 3 - Structure & Contextual Loggers (2 hours)
+  → Read README.md Sections 6-8 - 30 min
+  → Complete Exercises 5-7 - 1.5 hours
+
+Day 4 - Middleware & Real-World Practice (2 hours)
+  → Read README.md Sections 9-10 - 20 min
+  → Complete Exercises 8-10 - 1.5 hours
+
+Day 5 - Consolidate (1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is Structured Logging?
+  → Instead of one opaque printed sentence, each log line is a set of
+    key-value attributes plus a severity level: level=INFO msg="..." key=val
+  → A machine can filter, search, and aggregate on those keys; a human can
+    still read the line
+
+Why Logging Matters:
+  → fmt.Println works while YOU are watching a terminal. Once a program
+    runs unattended, on someone else's machine, you need a record you can
+    search after the fact - and a way to tell "this failed" from "this is
+    routine" without scrolling through everything
+
+================================================================================
+                 THE STANDARD log PACKAGE (RECAP)
+================================================================================
+
+  log.Println("server starting on :8080")
+  log.SetPrefix("[MYAPP] ")
+  log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+  log.Printf("connected users: %d", 12)
+
+Limitations: no structure (one opaque string), no levels (everything is
+the same severity), no attributes (you'd hand-format them into the string).
+
+================================================================================
+                    log/slog: STRUCTURED LOGGING
+================================================================================
+
+  logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+  logger.Info("user logged in", "user_id", 42, "method", "password")
+  logger.Warn("rate limit approaching", "requests", 95, "limit", 100)
+  logger.Error("payment failed", "reason", "card_declined")
+
+Output (JSONHandler):
+  {"time":"...","level":"INFO","msg":"user logged in","user_id":42,"method":"password"}
+
+================================================================================
+              TextHandler vs JSONHandler
+================================================================================
+
+Same logger.Info(...) call, two different handlers:
+
+  TextHandler:  time=... level=INFO msg="order placed" order_id=ord-9001 total=129.5
+  JSONHandler:  {"time":"...","level":"INFO","msg":"order placed","order_id":"ord-9001","total":129.5}
+
+TextHandler → a human watching a terminal during local development
+JSONHandler → a log aggregator (Loki, ELK, CloudWatch, Datadog...) in production
+
+================================================================================
+                 LOG LEVELS AND FILTERING
+================================================================================
+
+  opts := &slog.HandlerOptions{Level: slog.LevelWarn}
+  logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+
+  logger.Debug(...)   // dropped - below minimum
+  logger.Info(...)    // dropped - below minimum
+  logger.Warn(...)    // printed
+  logger.Error(...)   // printed
+
+This is how production turns down noise without redeploying: read the
+minimum level from configuration (Level 34) and pass it into HandlerOptions.
+
+================================================================================
+              CONTEXTUAL LOGGERS AND context.Context
+================================================================================
+
+  reqLogger := base.With("request_id", "req-a1b2")   // child logger, baseline attrs
+
+  ctx := withLogger(context.Background(), reqLogger) // stash it (Level 24 pattern)
+  processOrder(ctx, "ord-500")                        // any nested call can log
+                                                        // with request_id attached,
+                                                        // with no logger parameter
+
+================================================================================
+              A REQUEST-LOGGING HTTP MIDDLEWARE
+================================================================================
+
+Building on Level 27's middleware pattern:
+
+  func RequestLogger(logger *slog.Logger, next http.Handler) http.Handler {
+      return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+          start := time.Now()
+          rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+          next.ServeHTTP(rec, r)
+          logger.Info("request handled",
+              "method", r.Method, "path", r.URL.Path,
+              "status", rec.status,
+              "duration_ms", time.Since(start).Milliseconds(),
+          )
+      })
+  }
+
+Write into a bytes.Buffer instead of stdout for deterministic, testable output.
+
+================================================================================
+                    KEY CONCEPTS SUMMARY
+================================================================================
+
+1. STRUCTURE
+   Key-value attributes on every log line, not one opaque sentence.
+
+2. LEVELS
+   Debug/Info/Warn/Error - filter noise with HandlerOptions.Level.
+
+3. HANDLERS
+   TextHandler (human) and JSONHandler (machine) - same call sites.
+
+4. CARRYING CONTEXT
+   .With() for a local child logger; context.Context to carry one through
+   an entire call chain (Level 24's typed-key pattern).
+
+5. MIDDLEWARE
+   A request-logging middleware that logs method, path, status, duration -
+   verified with real captured output, not guessed.
+
+6. THE ONE RULE
+   Log each failure exactly once, at the boundary - never log AND return
+   the same error at every layer (Level 16's log-and-return mistake).
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Log-and-return
+  func fetchUser(logger *slog.Logger, id int) error {
+      logger.Error("fetch failed", "err", err)   // logged here...
+      return err
+  }
+  func handleRequest(logger *slog.Logger, id int) {
+      if err := fetchUser(logger, id); err != nil {
+          logger.Error("request failed", "err", err) // ...and again here!
+      }
+  }
+
+✅ RIGHT: Log exactly once, at the boundary
+  func fetchUser(id int) error {
+      return err   // just return - no logging in the lower layer
+  }
+  func handleRequest(logger *slog.Logger, id int) {
+      if err := fetchUser(id); err != nil {
+          logger.Error("request failed", "err", err) // exactly one ERROR line
+      }
+  }
+
+---
+
+❌ WRONG: Logging secrets
+  logger.Info("login attempt", "username", user, "password", password)
+
+✅ RIGHT: Never log the raw value
+  logger.Info("login attempt", "username", user, "password_provided", password != "")
+
+---
+
+❌ WRONG: Forgetting a minimum log level in production
+  handler := slog.NewJSONHandler(os.Stdout, nil)   // defaults to Info - fine,
+                                                     // but never explicitly set
+
+✅ RIGHT: Read the minimum level from configuration explicitly (Level 34)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the TextHandler/JSONHandler comparison and
+  the context-carried-logger diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → The log package recap, log/slog, handlers, levels, structure, context,
+     middleware, best practices, and common mistakes - all with real
+     captured output
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → log vs log/slog comparison table
+   → TextHandler vs JSONHandler output comparison
+   → Log-level filtering diagram
+   → Context-carried-logger pattern diagram
+   → Request-logging-middleware flow diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Do I still need the log package after this level?
+A: For quick scripts and CLI tools, sure. For anything that runs as a
+   service, prefer log/slog - it gives you levels and structure log never
+   will.
+
+Q: Should I use TextHandler or JSONHandler in production?
+A: JSONHandler, almost always - it's what log aggregators expect.
+   TextHandler is nicer for a human watching a local terminal.
+
+Q: Why store a logger in context.Context instead of a parameter?
+A: Level 24's rule applies: context.Value suits cross-cutting, request-
+   scoped data many unrelated layers need (like a request ID or a
+   request-scoped logger), without threading it through every signature.
+
+Q: What's wrong with logging an error and then also returning it?
+A: The same failure ends up logged multiple times as it bubbles up through
+   layers - log exactly once, at the boundary.
+
+Q: Should I call slog.SetDefault() everywhere?
+A: No - reserve it for main(). Pass explicit *slog.Logger instances into
+   constructors elsewhere; it's more testable.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 33?
+================================================================================
+
+Level 34: Configuration
+  - Loading configuration from environment variables and files
+  - Setting the log level (and everything else) from external config
+  - Validating configuration at startup instead of failing deep inside a
+    request
+
+You'll wire the log level you've been hardcoding straight into Level 34's
+configuration loading!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Logging is how your programs explain themselves once nobody is watching a
+terminal anymore. Master it now and every future level - configuration,
+Docker, Kubernetes, CI/CD, production debugging - gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 34 - Configuration
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- log/slog gives you structure and levels that log never had
+- TextHandler for humans, JSONHandler for machines - same call sites
+- HandlerOptions.Level filters noise for free
+- Carry a logger through context.Context so every layer logs consistently
+- Log each failure exactly once, at the boundary
+
+Let's go! 🎉
+
+================================================================================

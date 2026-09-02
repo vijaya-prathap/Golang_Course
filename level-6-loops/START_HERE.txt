@@ -1,0 +1,406 @@
+================================================================================
+                          LEVEL 6: LOOPS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 6! You've mastered conditions (Level 5). Now it's time to
+learn LOOPS - how to repeat code without copy-pasting it over and over.
+
+Go has exactly ONE loop keyword: for. There's no separate while or
+do-while - for covers all of them through different forms.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ The three-component for loop (classic counting loop)
+✅ The while-style for loop (condition only)
+✅ The infinite for loop (needs a break to exit)
+✅ break and continue
+✅ range over slices, arrays, strings, and maps
+✅ Labeled break and continue for nested loops
+✅ Common loop patterns: accumulate, find, filter, count
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 6 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐ (Intermediate)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 5 (Conditions)
+  ✅ Comfortable with if/else and switch statements
+  ✅ Basic familiarity with slices and maps (from Level 3)
+
+If you haven't done Level 5, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The for Loop Shapes (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-3 - 1 hour 20 min
+
+Day 2 - break, continue & range Basics (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 4-6 - 1.5 hours
+
+Day 3 - range Over Maps & Labeled Loops (1.5 hours)
+  → Read README.md Sections 6-7 - 25 min
+  → Complete Exercises 7-8 - 1 hour 5 min
+
+Day 4 - Patterns & Real-World Practice (1.5 hours)
+  → Complete Exercises 9-10 - 1.5 hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review range's behavior for strings and maps
+  → Ask: "Can I write any of the four common patterns from memory?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Loop?
+  → Code that repeats until some condition says to stop
+  → Go has ONE keyword (for) that takes THREE shapes
+  → Loops turn "do this once" into "do this for every item / N times /
+    until some condition changes"
+
+Why Loops Matter:
+  → Almost nothing useful happens only once - processing a list,
+    reading input until done, retrying a request, searching data
+  → Combined with conditions (Level 5), loops are how programs do
+    real work on real data
+
+================================================================================
+                 THE THREE for LOOP SHAPES
+================================================================================
+
+1. THREE-COMPONENT (the classic counting loop)
+
+  for i := 0; i < 5; i++ {
+      fmt.Println(i)
+  }
+  // init: i := 0   condition: i < 5   post: i++
+
+2. WHILE-STYLE (condition only - this IS Go's while loop!)
+
+  count := 0
+  for count < 5 {
+      fmt.Println(count)
+      count++
+  }
+
+3. INFINITE (no clauses - must break to exit)
+
+  for {
+      if done {
+          break
+      }
+  }
+
+================================================================================
+                    break AND continue
+================================================================================
+
+  break     → exits the loop immediately
+  continue  → skips the rest of THIS iteration, moves to the next one
+
+  for i := 0; i < 10; i++ {
+      if i == 5 {
+          break        // stops entirely: prints 0,1,2,3,4
+      }
+      fmt.Println(i)
+  }
+
+  for i := 0; i < 10; i++ {
+      if i%2 != 0 {
+          continue     // skips odd numbers: prints 0,2,4,6,8
+      }
+      fmt.Println(i)
+  }
+
+================================================================================
+                 range: THE IDIOMATIC ITERATOR
+================================================================================
+
+range works over slices, arrays, strings, and maps.
+
+  fruits := []string{"apple", "banana", "cherry"}
+  for i, fruit := range fruits {
+      fmt.Println(i, fruit)
+  }
+
+Don't need the index? Use _ to ignore it:
+
+  for _, fruit := range fruits {
+      fmt.Println(fruit)
+  }
+
+KEY GOTCHA #1 - Strings give you RUNES, not bytes:
+
+  for i, r := range "héllo" {
+      fmt.Println(i, r)
+  }
+  // é takes 2 bytes, so the index jumps: 0, 1, 3, 4, 5 (not 0,1,2,3,4!)
+
+KEY GOTCHA #2 - Map iteration order is RANDOMIZED on purpose:
+
+  for k, v := range myMap {
+      fmt.Println(k, v)   // order changes between runs!
+  }
+  // Need a stable order? Collect the keys, sort.Strings() them, then loop.
+
+================================================================================
+                 LABELED break AND continue
+================================================================================
+
+Plain break/continue only affect the INNERMOST loop. Use a label to
+target an outer loop:
+
+  outer:
+      for i := 0; i < 3; i++ {
+          for j := 0; j < 3; j++ {
+              if j == 1 {
+                  break outer   // exits BOTH loops at once!
+              }
+          }
+      }
+
+================================================================================
+                    COMMON LOOP PATTERNS
+================================================================================
+
+Almost every loop you write is one of these four:
+
+  ACCUMULATE:  sum := 0; for _, n := range nums { sum += n }
+  FIND:        for _, v := range items { if v == target { break } }
+  FILTER:      for _, n := range nums { if n%2==0 { result = append(result, n) } }
+  COUNT:       counts := map[string]int{}; for _, w := range words { counts[w]++ }
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import "fmt"
+
+func main() {
+    total := 0
+    for i := 1; i <= 5; i++ {
+        total += i
+    }
+    fmt.Println("Sum 1-5:", total)
+
+    names := []string{"Alice", "Bob", "Charlie"}
+    for i, name := range names {
+        fmt.Printf("%d: %s\n", i, name)
+    }
+}
+
+Output:
+  Sum 1-5: 15
+  0: Alice
+  1: Bob
+  2: Charlie
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THREE for SHAPES
+   for i:=0; i<n; i++ { }   for cond { }   for { }
+
+2. LOOP CONTROL
+   break exits, continue skips - both target only the innermost loop
+   unless labeled.
+
+3. RANGE
+   Idiomatic way to iterate slices/arrays/strings/maps.
+   Strings give runes, not bytes. Maps give randomized order.
+
+4. LABELS
+   outer: for ... { for ... { break outer / continue outer } }
+
+5. PATTERNS
+   Accumulate, find, filter, count.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Off-by-one
+  for i := 0; i < len(items)-1; i++ { }   // misses the last item!
+
+✅ RIGHT
+  for i := 0; i < len(items); i++ { }
+
+---
+
+❌ WRONG: Forgetting to update the loop variable
+  for i := 0; i < 5; {
+      fmt.Println(i)   // infinite loop! i never changes
+  }
+
+✅ RIGHT
+  for i := 0; i < 5; i++ { }
+
+---
+
+❌ WRONG: Assuming map order is stable
+  for k := range myMap {
+      fmt.Println(k)   // order varies between runs
+  }
+
+✅ RIGHT: Sort keys first if you need a stable order
+
+---
+
+❌ WRONG: Unlabeled break inside nested loops (only exits the inner one)
+  for i := 0; i < 3; i++ {
+      for j := 0; j < 3; j++ {
+          if j == 1 { break }   // outer loop keeps going!
+      }
+  }
+
+✅ RIGHT: Label the outer loop if you mean to exit both
+  outer:
+      for i := 0; i < 3; i++ {
+          for j := 0; j < 3; j++ {
+              if j == 1 { break outer }
+          }
+      }
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the range cheat sheet
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → All loop forms, range, labels, and patterns explained with examples
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → The three for loop shapes compared
+   → range cheat sheet by collection type
+   → Rune iteration diagrams
+   → Labeled break/continue decision tree
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Does Go have a while loop?
+A: Not as a separate keyword - for condition { } IS the while loop.
+
+Q: Why does ranging over a string give weird jumping indices?
+A: range decodes UTF-8 into runes. Multi-byte characters (like é) make
+   the index skip ahead by more than 1.
+
+Q: Why does my map print in a different order every run?
+A: Go randomizes map iteration order on purpose. Sort the keys if you
+   need a stable, repeatable order.
+
+Q: What's the difference between break and a labeled break?
+A: Plain break only exits the innermost loop. A labeled break <label>
+   exits the labeled outer loop too, even from inside nested loops.
+
+Q: Should I always use range instead of a manual index loop?
+A: Almost always, yes - it's more idiomatic. Use a manual for i:=0;...
+   loop only when you need fine control (skipping around, comparing
+   positions, moving backward).
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 6?
+================================================================================
+
+Level 7: Arrays
+  - Fixed-size arrays in depth
+  - Array vs slice semantics
+  - Multi-dimensional arrays
+  - When to use arrays vs slices
+
+You'll use loops constantly to process arrays and slices in Level 7!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Loops are how your programs process real data at scale. Master them now
+and every future level - arrays, slices, maps, strings - gets easier.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 7 - Arrays
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐ (Intermediate)
+
+Remember:
+- for is Go's only loop keyword - three shapes, one keyword
+- break exits, continue skips - both target the innermost loop unless labeled
+- range over a string gives runes, not bytes
+- Map iteration order is randomized on purpose - sort keys if order matters
+
+Let's go! 🎉
+
+================================================================================

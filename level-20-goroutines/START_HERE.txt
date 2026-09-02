@@ -1,0 +1,352 @@
+================================================================================
+                          LEVEL 20: GOROUTINES
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 20! You've mastered structuring data with JSON (Level 19).
+Now it's time to learn how Go runs MULTIPLE THINGS AT ONCE: goroutines.
+
+This is one of Go's signature features - concurrency built into the
+language itself. It's also genuinely harder than what came before, because
+goroutine scheduling is non-deterministic by nature. Take your time here.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What a goroutine is - a lightweight, runtime-managed unit of execution
+✅ Concurrency vs. parallelism - dealing with many things vs. doing many
+   things at the exact same instant
+✅ The classic beginner bug: main() returning before a goroutine finishes
+✅ sync.WaitGroup - Add/Done/Wait to synchronize goroutine completion
+✅ Closures and loop variable capture (verified safe on this project's
+   Go version, 1.26.5)
+✅ Data races - what they are, seeing one for real, and go run -race
+✅ Fixing races with a minimal sync.Mutex (full coverage: Level 23)
+✅ Goroutine leaks - blocked forever, never garbage collected
+✅ When to use goroutines, and when NOT to
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 20 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 19 (JSON)
+  ✅ Comfortable with functions and closures (Level 11)
+  ✅ Comfortable with pointers (Level 12)
+
+If you haven't done Level 19, go back and complete it first!
+
+================================================================================
+                      A NOTE ON NON-DETERMINISM
+================================================================================
+
+Goroutine scheduling is genuinely unpredictable. A few exercises in this
+level will show you DIFFERENT output on different runs, ON PURPOSE - that
+unpredictability IS the lesson. This course is honest about it: wherever
+output can vary, it says so explicitly and shows you one real captured run
+as an example, rather than pretending there's a single "correct" answer.
+
+Most exercises, though, are built to be fully deterministic once you
+synchronize correctly - that contrast is exactly what you're here to learn.
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Goroutine Basics (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Complete Exercise 1 - 45 min
+
+Day 2 - WaitGroup & Loop Capture (2 hours)
+  → Read README.md Sections 3-4 - 25 min
+  → Complete Exercises 2-4 - 1.5 hours
+
+Day 3 - Races & Mutex (2 hours)
+  → Read README.md Sections 5-6 - 30 min
+  → Complete Exercises 5-6 - 1.5 hours
+
+Day 4 - Leaks & Fan-Out Patterns (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 7-9 - 1.5 hours
+
+Day 5 - Comprehensive Practice (1.5 hours)
+  → Complete Exercise 10 - 45 min
+  → Try bonus challenges
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Goroutine?
+  → A lightweight, independently executing function, managed by the Go
+    runtime - not an OS thread, but far cheaper
+  → Launched with one word: go someFunc()
+  → The Go runtime schedules many goroutines onto a much smaller number
+    of real OS threads
+
+Why Goroutines Matter:
+  → Real programs wait on things constantly - network calls, file I/O,
+    database queries
+  → Goroutines let your program do other useful work while waiting,
+    instead of blocking everything on one slow operation
+  → This is how Go servers handle thousands of concurrent connections
+    without thousands of OS threads
+
+================================================================================
+                 LAUNCHING A GOROUTINE
+================================================================================
+
+  go someFunc()      // returns immediately - does NOT wait
+
+  package main
+
+  import "fmt"
+
+  func sayHello() {
+      fmt.Println("Hello from the goroutine!")
+  }
+
+  func main() {
+      go sayHello()
+      // main() may return before sayHello() ever runs!
+  }
+
+  This is the #1 beginner trap: main() returning kills every goroutine
+  still running. Exercise 1 shows this happening for real.
+
+================================================================================
+                 THE FIX: sync.WaitGroup
+================================================================================
+
+  var wg sync.WaitGroup
+
+  wg.Add(1)              // BEFORE launching
+  go func() {
+      defer wg.Done()     // when the goroutine finishes
+      fmt.Println("Hello from the goroutine!")
+  }()
+
+  wg.Wait()               // blocks until the counter hits 0
+
+================================================================================
+                 DATA RACES AND sync.Mutex
+================================================================================
+
+  Two goroutines touching the same variable, at least one writing it,
+  with no synchronization = a DATA RACE. Results become unpredictable.
+
+  counter++                          // ❌ NOT atomic - a race if shared
+
+  mu.Lock()
+  counter++                          // ✅ safe - only one at a time
+  mu.Unlock()
+
+  Catch races for real with:  go run -race main.go
+
+================================================================================
+                 GOROUTINE LEAKS
+================================================================================
+
+  A goroutine blocked FOREVER (e.g. sending on a channel nobody reads)
+  is never garbage collected - it just sits there, consuming memory,
+  for the life of the program.
+
+  go func() { ch <- result }()   // leaks if nobody ever reads ch
+
+  Always know how a goroutine will stop.
+
+================================================================================
+                    KEY CONCEPTS SUMMARY
+================================================================================
+
+1. GOROUTINES
+   go someFunc() - lightweight, runtime-scheduled concurrent execution
+
+2. CONCURRENCY vs PARALLELISM
+   Concurrency = structure (dealing with many things). Parallelism =
+   execution (doing many things at the same instant, needs multiple cores)
+
+3. sync.WaitGroup
+   Add before launching, Done (deferred) inside the goroutine, Wait to block
+
+4. LOOP VARIABLE CAPTURE
+   Safe per-iteration on Go 1.22+ (this project: go1.26.5) - no workaround needed
+
+5. DATA RACES
+   Unsynchronized concurrent access + at least one write = a race.
+   go run -race catches it. sync.Mutex fixes it (full coverage: Level 23)
+
+6. GOROUTINE LEAKS
+   Blocked forever = never garbage collected. Always plan the exit.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Forgetting to wait for a goroutine
+  go fmt.Println("hi")   // main() might exit first
+
+✅ RIGHT
+  wg.Add(1); go func() { defer wg.Done(); fmt.Println("hi") }(); wg.Wait()
+
+---
+
+❌ WRONG: Assuming the pre-1.22 loop variable sharing bug still applies
+  for i := 0; i < 5; i++ {
+      go func(i int) { fmt.Println(i) }(i)   // unnecessary on Go 1.22+
+  }
+
+✅ RIGHT (this project's go1.26.5): just use i directly, it's already safe
+  for i := 0; i < 5; i++ {
+      go func() { fmt.Println(i) }()
+  }
+
+---
+
+❌ WRONG: Unsynchronized shared state
+  counter++   // from multiple goroutines - a data race
+
+✅ RIGHT
+  mu.Lock(); counter++; mu.Unlock()
+
+---
+
+❌ WRONG: A goroutine with no way to stop
+  go func() { ch <- result }()   // leaks if nobody ever reads ch
+
+✅ RIGHT: give it a timeout, a done channel, or a context
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the goroutine lifecycle and race timeline
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Goroutines, WaitGroup, closures, races, mutexes, and leaks explained
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs, with non-determinism called out explicitly
+
+📄 STUDY_GUIDE.md
+   → Goroutine lifecycle diagram
+   → Concurrency vs. parallelism diagram
+   → WaitGroup flow diagram and race-condition timeline
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why did my goroutine's print statement never show up?
+A: main() almost certainly returned before the scheduler ran it. This is
+   exactly the bug Exercise 1 demonstrates and Exercise 2 fixes.
+
+Q: Is a goroutine an OS thread?
+A: No - it's much lighter weight. The Go runtime multiplexes many
+   goroutines onto a smaller number of real OS threads.
+
+Q: Do I need the "i := i" loop variable trick?
+A: Not on this project's Go version (1.26.5), or any Go 1.22+. Each loop
+   iteration already gets its own copy. See Level 11 and this level's
+   README for the full history of why this used to matter.
+
+Q: Does the race detector (-race) always work?
+A: It requires cgo. It worked in this course's sandbox with real captured
+   output - if it's unavailable in your environment, the exercises still
+   show you the buggy, non-deterministic output without it.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 20?
+================================================================================
+
+Level 21: Channels
+  - Sending and receiving values between goroutines
+  - Buffered vs. unbuffered channels
+  - select for waiting on multiple channels
+  - A more idiomatic alternative to this level's mutex-protected shared state
+
+You'll use goroutines constantly alongside channels in Level 21!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Concurrency is one of Go's biggest strengths. Take it slow, run every
+example yourself, and don't be surprised when output varies - that's
+the whole point of a few of these exercises.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 21 - Channels
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- go someFunc() launches a goroutine - it does NOT wait for it
+- main() returning kills every goroutine still running
+- sync.WaitGroup (Add/Done/Wait) is how you wait for goroutines
+- On this project's Go version, loop variable capture in goroutines is safe
+- A data race needs at least one write + no synchronization - fix it with
+  sync.Mutex
+- A goroutine blocked forever is a leak - always know how it will stop
+
+Let's go! 🎉
+
+================================================================================

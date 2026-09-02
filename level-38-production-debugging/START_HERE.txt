@@ -1,0 +1,344 @@
+================================================================================
+                   LEVEL 38: PRODUCTION DEBUGGING
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 38! You've automated your deployment pipeline (Level 37).
+Now it's time to learn what happens AFTER your code is running in
+production, serving real traffic, on a machine you can't just attach a
+local debugger to whenever you feel like it: PRODUCTION DEBUGGING.
+
+Good news: Go's profiling tools (net/http/pprof, runtime/pprof, go tool
+pprof) are part of the standard toolchain. Nothing in this level needs an
+external service - it's all real, verified Go code and real captured
+output.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why production debugging needs different tools than local development
+✅ CPU profiling with net/http/pprof and go tool pprof
+✅ Memory (heap) profiling and confirming predictable allocations
+✅ Goroutine profiling and recognizing a leak's real signature
+✅ Lightweight diagnostics: runtime.NumGoroutine() and ReadMemStats()
+✅ Common production issues: goroutine leaks, memory leaks, deadlocks
+✅ The Delve debugger - breakpoints and inspection, even on a running process
+✅ Health check endpoints that report real internal state
+✅ Structured logging for incident response, with correlation IDs
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 38 Duration: 6-8 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 4-5 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 37 (CI/CD)
+  ✅ Comfortable with goroutines, channels, and real deadlock output
+     (Levels 20, 21, 23)
+  ✅ Comfortable with structured logging via log/slog (Level 33)
+  ✅ Comfortable building HTTP servers and handlers (Level 27, Level 28)
+
+If you haven't done Level 37, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Why It's Different, and pprof Setup (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 30 min
+  → Complete Exercise 1 - 30 min
+
+Day 2 - CPU and Memory Profiling (2.5 hours)
+  → Read README.md Sections 2-3 - 25 min
+  → Complete Exercises 2-3 - 2 hours
+
+Day 3 - Goroutine Profiling & Lightweight Diagnostics (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 4-5 - 1.5 hours
+
+Day 4 - Health Checks & Structured Logging (2 hours)
+  → Read README.md Sections 8-9 - 25 min
+  → Complete Exercises 6-7 - 1.5 hours
+
+Day 5 - Delve & Deadlocks (2 hours)
+  → Read README.md Sections 6-7 - 25 min
+  → Complete Exercises 8-9 - 1.5 hours
+
+Day 6 - Comprehensive Practice (2 hours)
+  → Complete Exercise 10 - 1.5 hours
+  → Try bonus challenges
+
+Day 7 - Consolidate (0.5 hours)
+  → Review with STUDY_GUIDE.md and QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Makes Production Debugging Different?
+  → No debugger attached from the start - the process was already
+    running before anything went wrong
+  → Often can't reproduce the bug locally - it depends on real load,
+    real data, real network conditions
+  → Evidence has to be captured IN THE MOMENT - logs, metrics, and
+    profiles pulled from the live process, not guessed at afterward
+
+Go's Answer:
+  → net/http/pprof exposes CPU, memory, and goroutine profiles over
+    plain HTTP - pull them from a running process without stopping it
+  → runtime.NumGoroutine() / ReadMemStats() give cheap, constant,
+    in-process numbers with no separate tooling
+  → Delve (dlv) can ATTACH to an already-running process - no restart
+  → A real health check and correlation-ID logging turn "something's
+    wrong" into "here's exactly what, where, and since when"
+
+================================================================================
+                   THE pprof ENDPOINTS AT A GLANCE
+================================================================================
+
+  import _ "net/http/pprof"   // side-effect import
+
+  /debug/pprof/profile?seconds=30    CPU profile (blocks for 30s)
+  /debug/pprof/heap?gc=1             live heap snapshot
+  /debug/pprof/goroutine?debug=2     full goroutine stack dump
+
+  ⚠️ GOTCHA: this only registers on http.DefaultServeMux. A custom
+  http.NewServeMux() gets NONE of these endpoints unless you register
+  pprof.Index/Profile/Symbol/Trace/Cmdline on it yourself. This was
+  reproduced for real while writing this level - a plain 404, no
+  warning, no hint that pprof was ever imported.
+
+================================================================================
+                 READING A CPU PROFILE (REAL EXAMPLE)
+================================================================================
+
+  go tool pprof -top -nodecount=10 ./server cpu.pprof
+
+  Real captured output from this level's own verification:
+
+        flat  flat%   sum%        cum   cum%
+       9.42s 59.47% 59.47%      9.42s 59.47%  syscall.rawsyscalln
+       5.57s 35.16% 94.63%      5.72s 36.11%  main.isPrime (inline)
+       0.29s  1.83% 96.46%      6.03s 38.07%  main.countPrimesHandler
+
+  main.isPrime - the function actually doing the CPU-bound work - is
+  unambiguously the hottest USER code frame. Reading flat% top-down is
+  the whole skill.
+
+================================================================================
+                 A REAL DEADLOCK (NOT A HYPOTHETICAL)
+================================================================================
+
+  ch := make(chan int)
+  <-ch   // nobody will ever send - deadlock
+
+  fatal error: all goroutines are asleep - deadlock!
+
+  goroutine 1 [chan receive]:
+  main.main()
+          .../main.go:5 +0x30
+  exit status 2
+
+  A deadlock CRASHES immediately and loudly - it does not hang
+  silently. Go's own runtime detector already printed the evidence
+  for you.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. WHY IT'S DIFFERENT
+   No pre-attached debugger, often no local repro, evidence must be
+   captured live.
+
+2. PROFILING
+   CPU (/debug/pprof/profile), memory (/debug/pprof/heap), goroutines
+   (/debug/pprof/goroutine) - all real HTTP endpoints.
+
+3. LIGHTWEIGHT DIAGNOSTICS
+   runtime.NumGoroutine() and runtime.ReadMemStats() - cheap, constant,
+   in-process.
+
+4. ISSUE SIGNATURES
+   Leaks: numbers rise and never fall. Deadlocks: the whole process
+   crashes immediately with a specific fatal error.
+
+5. DELVE
+   dlv exec (fresh process) and dlv attach <pid> (already-running
+   process) - a real debugger, not just print statements.
+
+6. HEALTH & LOGGING
+   /healthz reports REAL dependency state. Correlation IDs let you
+   trace one request across every log line it produces.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Exposing /debug/pprof/ on a public listener
+✅ RIGHT: Bind to 127.0.0.1, or gate behind auth/internal-only network
+
+---
+
+❌ WRONG: Building a custom http.NewServeMux() and expecting pprof to
+          just work on it
+✅ RIGHT: Use http.DefaultServeMux, or register pprof's handlers
+          explicitly on your own mux
+
+---
+
+❌ WRONG: Capturing a CPU profile while the server is idle
+✅ RIGHT: Profile WHILE real (or simulated) load is hitting the service
+
+---
+
+❌ WRONG: A /healthz that always returns 200 OK
+✅ RIGHT: Check real dependencies (DB, goroutine count) and return 503
+          when something is actually wrong
+
+---
+
+❌ WRONG: Log lines during an incident with no shared identifier
+✅ RIGHT: A correlation ID (request_id) on every log line for a request,
+          assigned once at the boundary
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 55 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the pprof reference table and the
+  CPU/memory/goroutine decision diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → CPU/memory/goroutine profiling, Delve, health checks, structured
+     logging - all with real, captured output
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs from real verification runs
+
+📄 STUDY_GUIDE.md
+   → The pprof endpoint reference table
+   → CPU vs memory vs goroutine profiling decision diagram
+   → Health check design diagram
+   → Common production issues and their profiling signatures
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential pprof/go tool pprof/Delve syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Do I need a real production server to do this level?
+A: No - every exercise runs a real local Go program that profiles or
+   diagnoses itself. The techniques transfer directly to a real
+   deployed service.
+
+Q: Why aren't any /debug/pprof/ endpoints responding for me?
+A: You probably built a custom http.NewServeMux() - net/http/pprof's
+   side-effect import only registers on http.DefaultServeMux.
+
+Q: Is it safe to leave pprof enabled in production?
+A: Only if it's not reachable publicly - bind to loopback or gate
+   behind auth. Exposed publicly, it's a real security issue.
+
+Q: What if dlv isn't installed on my machine?
+A: Install it from https://github.com/go-delve/delve, or read Section 7
+   and Exercise 8 as reference - dlv (v1.27.0) WAS available while
+   writing this level, so that content is real, captured output.
+
+Q: How is a goroutine leak different from a deadlock?
+A: A deadlock means EVERY goroutine is blocked - the runtime detects
+   this and crashes immediately. A leak means SOME goroutines are stuck
+   while the rest of the program runs fine - it doesn't crash, it just
+   slowly accumulates dead weight.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 38?
+================================================================================
+
+Level 39: System Design
+  - Designing systems at a higher level than a single service
+  - Applying observability, deployment, and debugging practices at
+    architectural scale
+
+You'll use this level's diagnostic instincts constantly when designing
+systems that need to be observable in production!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Production debugging is how real engineers keep real systems running.
+Master it now and every future incident becomes "here's exactly what's
+wrong" instead of "let's restart it and hope."
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 39 - System Design
+Estimated completion: 6-8 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- net/http/pprof only registers on http.DefaultServeMux
+- Profile under real load, never idle conditions
+- A deadlock crashes loudly and immediately - it never just hangs
+- A health check is only useful if it reports REAL dependency state
+- Correlation IDs turn a pile of log lines into one traceable story
+
+Let's go! 🎉
+
+================================================================================

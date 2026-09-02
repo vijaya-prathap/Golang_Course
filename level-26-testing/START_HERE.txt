@@ -1,0 +1,388 @@
+================================================================================
+                          LEVEL 26: TESTING
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 26! You've mastered generics (Level 25) - writing functions
+and types that work across many types safely. Now it's time for TESTING -
+the practice that turns "code that seems to work" into code you can PROVE
+works, and keep proving as it changes.
+
+Go ships its testing tools in the standard library: the "testing" package
+and the "go test" command. No third-party framework required. This is a
+big part of why Go code tends to be so heavily tested - the tools are
+already there, fast, and shared by every Go developer everywhere.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ The testing package, _test.go naming, and go test
+✅ t.Error/t.Errorf vs t.Fatal/t.Fatalf
+✅ Table-driven tests - the idiomatic Go testing pattern
+✅ Subtests with t.Run, and running just one with -run
+✅ Test coverage: go test -cover and go tool cover
+✅ Benchmarks: BenchmarkXxx and go test -bench
+✅ Test helpers and t.Helper()
+✅ Setup/teardown: TestMain and t.Cleanup()
+✅ Testing HTTP handlers with httptest (a Level 27 preview)
+✅ Mocking dependencies via interfaces (revisiting Level 15)
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 26 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 2.5-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 25 (Generics)
+  ✅ Comfortable with functions, methods, and error handling
+  ✅ Comfortable with interfaces and implicit satisfaction (Level 15)
+
+If you haven't done Level 25, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The Basics (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Complete Exercises 1-2 - 1 hour 25 min
+
+Day 2 - The Idiomatic Shape (2 hours)
+  → Read README.md Sections 3-4 - 25 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - Measuring Your Tests (1.5 hours)
+  → Read README.md Sections 5-6 - 25 min
+  → Complete Exercises 5-6 - 1 hour 5 min
+
+Day 4 - Maintainable Suites (2 hours)
+  → Read README.md Sections 7-10 - 35 min
+  → Complete Exercises 7-10 - 1.5 hours
+
+Day 5 - Consolidate (1.5 hours)
+  → Try the bonus challenges (generics, fuzzing, golden files)
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Test?
+  → A function that calls your code and checks the result, reporting a
+    failure through *testing.T instead of crashing or printing manually
+  → Go compiles _test.go files ONLY when you run "go test" - they add
+    zero cost to your real program
+
+Why Testing Matters:
+  → Manual testing doesn't scale - you can't re-click through your app
+    after every single change
+  → Tests are what make refactoring SAFE - the instant something breaks,
+    you know, instead of finding out in production
+  → Go's whole ecosystem assumes you test: `go test ./...` is the first
+    thing CI runs on virtually every Go project
+
+================================================================================
+                 A MINIMAL EXAMPLE
+================================================================================
+
+math.go:
+  package mathutil
+
+  func Add(a, b int) int {
+      return a + b
+  }
+
+math_test.go:
+  package mathutil
+
+  import "testing"
+
+  func TestAdd(t *testing.T) {
+      result := Add(2, 3)
+      if result != 5 {
+          t.Errorf("Add(2, 3) = %d; want 5", result)
+      }
+  }
+
+Run it:
+  go test -v
+
+Real output:
+  === RUN   TestAdd
+  --- PASS: TestAdd (0.00s)
+  PASS
+  ok  	level26.example/exercise1	0.547s
+
+================================================================================
+                    t.Error vs t.Fatal
+================================================================================
+
+  t.Error / t.Errorf   → marks the test FAILED, keeps running
+  t.Fatal / t.Fatalf   → marks the test FAILED, stops THIS test right now
+
+  Use Fatal right after checking an error return, before you'd otherwise
+  use a result that might be invalid:
+
+      cfg, err := ParseConfig(input)
+      if err != nil {
+          t.Fatalf("ParseConfig: %v", err)   // cfg might be nil - STOP
+      }
+      if cfg.Timeout != 30 {
+          t.Errorf("Timeout wrong")           // safe to keep checking
+      }
+
+================================================================================
+                 THE IDIOMATIC SHAPE: TABLE-DRIVEN TESTS
+================================================================================
+
+Almost every Go test looks like this:
+
+  tests := []struct {
+      name  string
+      input []int
+      want  int
+  }{
+      {"all positive", []int{3, 1, 4, 1, 5, 9}, 9},
+      {"all negative", []int{-5, -2, -9, -1}, -1},
+  }
+
+  for _, tt := range tests {
+      t.Run(tt.name, func(t *testing.T) {
+          got := Max(tt.input)
+          if got != tt.want {
+              t.Errorf("Max(%v) = %d; want %d", tt.input, got, tt.want)
+          }
+      })
+  }
+
+t.Run gives each row a NAME, so go test -v shows exactly which case failed:
+
+  --- FAIL: TestMax (0.00s)
+      --- PASS: TestMax/all_positive (0.00s)
+      --- FAIL: TestMax/all_negative (0.00s)
+
+And -run lets you re-run just that one case:
+
+  go test -v -run 'TestMax/all_negative'
+
+================================================================================
+                 MEASURING: COVERAGE AND BENCHMARKS
+================================================================================
+
+Coverage - what statements actually ran:
+
+  go test -cover
+  → ok  	yourpkg	0.9s	coverage: 66.7% of statements
+
+Benchmarks - how fast your code runs (numbers vary by machine!):
+
+  func BenchmarkReverse(b *testing.B) {
+      for i := 0; i < b.N; i++ {
+          Reverse("some text")
+      }
+  }
+
+  go test -bench=. -run=^$
+  → BenchmarkReverse-10    3444912    332.6 ns/op
+
+================================================================================
+                 MOCKING VIA INTERFACES (Level 15 revisited)
+================================================================================
+
+A small, consumer-defined interface lets you swap a real dependency for a
+test-only fake - no mocking framework needed:
+
+  type Notifier interface {
+      Notify(message string) error
+  }
+
+  type fakeNotifier struct{ messages []string }
+
+  func (f *fakeNotifier) Notify(m string) error {
+      f.messages = append(f.messages, m)
+      return nil
+  }
+
+  svc := NewOrderService(&fakeNotifier{})  // no real email ever sent in tests
+
+================================================================================
+                    KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE CONVENTION
+   _test.go files, TestXxx(t *testing.T), go test - built into the toolchain.
+
+2. FAILURE REPORTING
+   t.Error*/t.Fatalf* - continue vs stop.
+
+3. THE IDIOMATIC SHAPE
+   Table-driven tests + t.Run subtests, run one with -run.
+
+4. MEASURING
+   go test -cover (what ran), go test -bench=. (how fast, machine-dependent).
+
+5. MAINTAINABILITY
+   t.Helper(), TestMain/t.Cleanup, httptest, mocking via interfaces.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Ignoring errors in tests
+  cfg, _ := ParseConfig(input)   // cfg might be nil/zero!
+
+✅ RIGHT
+  cfg, err := ParseConfig(input)
+  if err != nil { t.Fatalf("ParseConfig: %v", err) }
+
+---
+
+❌ WRONG: Table-driven tests without subtests
+  for _, tt := range tests {
+      if got := Max(tt.input); got != tt.want { t.Errorf(...) }
+  }
+  // a failure gives you a line number, not a case name
+
+✅ RIGHT: wrap each case in t.Run(tt.name, func(t *testing.T) { ... })
+
+---
+
+❌ WRONG: Testing private implementation details
+  normalizeWhitespace(...)   // an unexported helper, tested directly
+
+✅ RIGHT: test the public function that uses it - internals can change freely
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the table-driven test anatomy diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, then the bonus challenges
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Testing basics, Error/Fatal, table-driven tests, subtests, coverage,
+     benchmarks, helpers, setup/teardown, httptest, mocking via interfaces
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Each exercise creates a code file AND a test file, then runs go test
+   → Real captured go test output for verification
+
+📄 STUDY_GUIDE.md
+   → Test naming/structure diagram
+   → t.Error vs t.Fatal comparison table
+   → Table-driven test anatomy and subtest hierarchy diagrams
+   → Coverage/benchmark output explained
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Do I need a testing framework?
+A: No - the standard library's testing package and go test ARE the
+   framework. It's enough for the overwhelming majority of Go projects.
+
+Q: When do I use t.Fatal instead of t.Error?
+A: When continuing after a failure would be unsafe or meaningless -
+   typically right after checking an error, before using a result that
+   might be invalid.
+
+Q: Is 100% coverage the goal?
+A: No. Coverage shows what RAN, not whether it's correct. Use it to find
+   untested branches, not as a target to chase blindly.
+
+Q: Do fuzz tests actually work in this course's Go version?
+A: Yes - verified on Go 1.26.5. It genuinely mutates inputs and can find
+   real bugs (see the bonus challenge).
+
+Q: How do I mock something in Go without a mocking library?
+A: Define a small interface at the point it's used, then write a fake
+   struct implementing it for your tests. No framework needed.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 26?
+================================================================================
+
+Level 27: HTTP & REST APIs
+  - Building real HTTP servers and handlers
+  - Routing, middleware, and request/response handling
+  - Testing HTTP services in depth, building on this level's httptest preview
+
+You'll test everything you build in Level 27 using exactly what you learn
+here!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Testing is how you prove your programs work - and keep proving it as they
+grow. Master it now and every future level gets safer to build on.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 27 - HTTP & REST APIs
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- _test.go files, TestXxx(t *testing.T), go test - no framework required
+- t.Error keeps going, t.Fatal stops now
+- Table-driven tests + t.Run subtests is the DEFAULT, not an advanced trick
+- Small interfaces + fakes let you test without touching the real thing
+
+Let's go! 🎉
+
+================================================================================

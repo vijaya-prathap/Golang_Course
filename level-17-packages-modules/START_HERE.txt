@@ -1,0 +1,342 @@
+================================================================================
+                    LEVEL 17: PACKAGES & MODULES
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 17! You've mastered error handling (Level 16). This level
+starts a new phase of the course: applying Go to real, larger programs built
+from MULTIPLE MODULES with deliberately designed package APIs.
+
+Level 2 taught you the basics - one directory is one package, capitalization
+controls visibility, go mod init creates a module. This level goes deeper:
+go.mod's full anatomy, real module commands, multi-module projects, the
+internal/ visibility rule, package API design, and multi-module workspaces.
+
+================================================================================
+                    A NOTE ON STAYING OFFLINE
+================================================================================
+
+Real Go projects usually fetch dependencies from a network registry with
+"go get". This entire level assumes NO internet access. Every exercise is
+built from local, sibling modules on disk instead - wired together with a
+"replace" directive (and later a "go.work" file) pointing one local module
+at another by relative path. Same real mechanics, zero network calls.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Every directive in go.mod: module, go, require, replace, exclude
+✅ Semantic versioning as Go modules interpret it (v0 / v1 / v2+)
+✅ Real module commands: go mod tidy, go list -m all, go mod why, go mod graph
+✅ Building a local multi-module project entirely offline
+✅ The internal/ directory and the visibility it enforces
+✅ Package-level API design: cohesion, minimal exported surface, no cycles
+✅ Multi-module workspaces with go.work
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 17 Duration: 5-6 hours
+- Theory & Concepts: 1.5-2 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 16 (Error Handling)
+  ✅ Comfortable with Level 2 basics: packages, imports, go mod init
+  ✅ A working Go toolchain installed on your machine
+
+If you haven't done Level 16, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - go.mod and Local Multi-Module Basics (2.5 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-4 - 35 min
+  → Complete Exercises 1-3 - 1 hour 45 min
+
+Day 2 - internal/ and Circular Imports (2 hours)
+  → Read README.md Sections 5-6 - 25 min
+  → Complete Exercises 4-6 - 1.5 hours
+
+Day 3 - API Design and go.work (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 7-8 - 1.5 hours
+
+Day 4 - Bringing It Together (1.5 hours)
+  → Complete Exercises 9-10 - 1 hour 15 min
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review replace vs. go.work with QUICK_REFERENCE.md
+  → Ask: "Can I wire two local modules together from memory?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What's a Module?
+  → A versioned unit of one or more packages, described by one go.mod
+  → "go mod init <path>" creates it
+  → A package is the unit of organization INSIDE a module; a module is
+    the unit of versioning and distribution
+
+Why This Level Matters:
+  → Real software is built from many modules, not one
+  → Knowing go.mod, module commands, internal/, and API design is what
+    separates "a script that runs" from "a project other code can depend on"
+
+Key Insight:
+  → A replace directive (or a go.work file) lets you develop two modules
+    together on your own disk, before either is ever published anywhere
+
+================================================================================
+                    go.mod ANATOMY, AT A GLANCE
+================================================================================
+
+  module example.com/widgets     <- identity + import-path prefix
+  go 1.26                        <- minimum language version
+  require example.com/x v1.2.0   <- a dependency, pinned to a version
+  replace example.com/x => ../x  <- redirect x locally (main module only)
+  exclude example.com/x v1.0.0   <- blacklist a version (main module only)
+
+================================================================================
+                 WIRING TWO LOCAL MODULES, OFFLINE
+================================================================================
+
+  $ go mod edit -require=example.com/greetings@v0.0.0-00010101000000-000000000000
+  $ go mod edit -replace=example.com/greetings=../greetings
+  $ go run .
+  Hello, Gopher!
+
+No network call happens anywhere in that sequence - "replace" redirects
+straight to the local directory.
+
+================================================================================
+                 internal/: A COMPILER-ENFORCED BOUNDARY
+================================================================================
+
+  example.com/owner/internal/secret   <- importable only from code rooted
+                                          at example.com/owner (internal's
+                                          parent)
+
+Try it from a different module and the compiler refuses, even with a
+replace directive pointing right at it:
+
+  main.go:6:5: use of internal package example.com/owner/internal/secret
+  not allowed
+
+================================================================================
+                 PACKAGE API DESIGN, IN ONE LINE
+================================================================================
+
+  Small, cohesive packages, named for what they DO, with the smallest
+  exported surface that does the job, and no import cycles - ever.
+
+================================================================================
+                 go.work: DEVELOPING MODULES TOGETHER
+================================================================================
+
+  $ go work init
+  $ go work use ./greetings ./app
+  $ go run ./app                <- no require/replace needed between them!
+
+go.work is usually a local, uncommitted file - it points at directories
+specific to your own checkout, not something to share like go.mod.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. go.mod
+   module, go, require, replace, exclude - what each line means and does
+
+2. SEMANTIC VERSIONING
+   v0 promises nothing, v1 promises compatibility within v1, v2+ needs
+   its own /vN import-path suffix
+
+3. MODULE COMMANDS
+   go mod tidy, go list -m all, go mod why, go mod graph
+
+4. internal/
+   Compiler-enforced visibility, scoped to the parent of "internal" -
+   cannot be bypassed with replace or go.work
+
+5. API DESIGN
+   Cohesion, minimal exported surface, no circular imports
+
+6. go.work
+   The cleaner tool for actively developing several local modules together
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Committing a replace pointing at a path only you have
+  replace example.com/x => /Users/yourname/dev/x
+
+✅ RIGHT: Keep local-only replace paths uncommitted, or use go.work instead
+
+---
+
+❌ WRONG: A breaking v2 release that keeps the v1 module path
+  module example.com/widgets           (should be .../widgets/v2)
+
+✅ RIGHT
+  module example.com/widgets/v2
+
+---
+
+❌ WRONG: Trying to import someone else's internal/ package
+  import "example.com/owner/internal/secret"   (from a different module)
+
+✅ RIGHT: There is no workaround - ask for it to be exported instead
+
+---
+
+❌ WRONG: One catch-all "utils" package that absorbs everything forever
+
+✅ RIGHT: Small, focused packages named for what they do
+  package dateutil / package mathutil / package validate
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the go.mod anatomy and replace-vs-go.work
+  diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → go.mod anatomy, versioning, module commands, multi-module setups,
+     internal/, API design, and go.work, all explained with real output
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Every expected output was actually run, offline
+
+📄 STUDY_GUIDE.md
+   → go.mod anatomy diagram
+   → Semantic versioning table
+   → replace vs. go.work comparison diagram
+   → internal/ visibility diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential commands and syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does this level avoid go get entirely?
+A: So every exercise works offline. A replace directive (or go.work) points
+   a module at a local directory instead of a network registry.
+
+Q: What's the difference between replace and go.work?
+A: replace lives in go.mod, is usually committed, and only affects the main
+   module's own build. go.work is a separate, usually-uncommitted file that
+   lets several local modules resolve each other with no require/replace
+   needed between them.
+
+Q: Can replace or go.work make an internal/ package importable from outside
+   its module tree?
+A: No. They only make a package findable on disk - internal/ visibility is
+   enforced by the compiler and cannot be bypassed either way.
+
+Q: Do I need a real v2 module to understand the /v2 import-path rule?
+A: No - it's explained conceptually, since it can't be demonstrated with a
+   real published module offline. Just recognize it when you see it.
+
+Q: What happens after Level 17?
+A: Level 18: File Handling
+   You'll learn about:
+   - Reading and writing files
+   - Working with paths and directories
+   - Buffered I/O
+   - Handling file-related errors
+
+================================================================================
+                    WHAT COMES AFTER LEVEL 17?
+================================================================================
+
+Level 18: File Handling
+  - Reading and writing files
+  - Working with paths and directories
+  - Buffered I/O
+  - Handling file-related errors (building on Level 16)
+
+You'll use packages and modules constantly to organize file-handling code
+in Level 18 and every level after it!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Understanding modules now will make every future level - and every real Go
+project you ever touch - easier to structure. This is how professionals
+organize Go code at scale.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 18 - File Handling
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐ (Advanced)
+
+Remember:
+- A module is versioned; a package is organized. go.mod is the contract.
+- replace and go.work both work fully offline - point them at local paths
+- internal/ is enforced by the compiler, not a convention
+- Small, cohesive packages beat one giant "utils" package every time
+
+Let's go! 🎉
+
+================================================================================

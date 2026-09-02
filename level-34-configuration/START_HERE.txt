@@ -1,0 +1,432 @@
+================================================================================
+                       LEVEL 34: CONFIGURATION
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 34! You've learned how to make your program tell you what
+it's doing (Level 33: Logging). Now it's time to learn CONFIGURATION - how
+to make the SAME compiled binary behave differently in dev, staging, and
+production, without recompiling or branching code.
+
+Go's standard library already has everything you need: os for environment
+variables, flag for command-line arguments, and strconv/time for turning
+those always-string values into real typed settings.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why the same binary needs different settings across environments
+✅ os.Getenv vs os.LookupEnv - distinguishing "unset" from "set to empty"
+✅ The flag package: defaults, flag.Parse(), command-line overrides
+✅ Designing a typed Config struct with a single LoadConfig() function
+✅ Config precedence: flags override env vars, which override defaults
+✅ Fail-fast validation at startup, bridging Level 33's log.Fatal
+✅ Type conversion (strconv, time.ParseDuration) with proper error handling
+✅ Hand-rolling a .env file parser for local-dev convenience
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 34 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 33 (Logging)
+  ✅ Comfortable with log.Fatal and error handling
+  ✅ Comfortable with file I/O basics (os.Open, bufio.Scanner from Level 18)
+  ✅ Comfortable with strconv string/number conversions (from Level 3)
+
+If you haven't done Level 33, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Reading Config (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - Structuring & Prioritizing Config (2 hours)
+  → Read README.md Sections 4-5 - 25 min
+  → Complete Exercises 3-4 - 1.5 hours
+
+Day 3 - Validation & Type Safety (1.5 hours)
+  → Read README.md Sections 6-7 - 25 min
+  → Complete Exercises 5-6 - 1 hour 5 min
+
+Day 4 - .env Files & Real-World Practice (2 hours)
+  → Complete Exercises 7-10 - 1.5+ hours
+  → Try bonus challenges
+
+Day 5 - Consolidate (0.5 hours)
+  → Review the flags > env > defaults precedence order
+  → Ask: "Can I write a fail-fast Validate() from memory?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is Configuration?
+  → Settings that change depending on WHERE a program runs, kept OUT of
+    the compiled code
+  → Sources: hardcoded defaults, environment variables, command-line flags,
+    and (for local dev) a .env file
+  → The goal: one binary, deployed unchanged everywhere, that behaves
+    correctly because of what's fed to it at startup
+
+Why Configuration Matters:
+  → A database URL, a port, an API key, a debug flag - all of these differ
+    between dev/staging/production
+  → Hardcoding any of them means recompiling (or branching code) for every
+    environment - configuration removes that need entirely
+
+================================================================================
+              os.Getenv vs os.LookupEnv
+================================================================================
+
+  os.Getenv("KEY")           -> always a string; "" means EITHER unset
+                                 OR explicitly set to empty
+  os.LookupEnv("KEY")        -> (string, bool); the bool tells you which
+
+  value := os.Getenv("APP_NAME")
+  // "" whether APP_NAME was never set, or set to ""
+
+  value, ok := os.LookupEnv("APP_NAME")
+  // ok == false -> never set
+  // ok == true, value == "" -> explicitly set to empty
+  // ok == true, value == "MyApp" -> set to "MyApp"
+
+================================================================================
+                    THE flag PACKAGE
+================================================================================
+
+  host := flag.String("host", "localhost", "server host")
+  port := flag.Int("port", 8080, "server port")
+  debug := flag.Bool("debug", false, "enable debug mode")
+
+  flag.Parse() // MUST run before reading *host, *port, *debug
+
+  go run main.go                     -> every flag = its default
+  go run main.go -port=9090          -> port=9090, rest = default
+
+================================================================================
+                 A TYPED Config STRUCT
+================================================================================
+
+  type Config struct {
+      Host string
+      Port string
+  }
+
+  func LoadConfig() Config {
+      return Config{
+          Host: getEnvOrDefault("APP_HOST", "0.0.0.0"),
+          Port: getEnvOrDefault("APP_PORT", "8080"),
+      }
+  }
+
+One function knows where settings come from. Everything else just
+receives a Config - never scattered os.Getenv calls.
+
+================================================================================
+              CONFIG PRECEDENCE: flags > env > defaults
+================================================================================
+
+  func resolve(flagVal string, flagSet bool, envKey, def string) (string, string) {
+      if flagSet {
+          return flagVal, "flag"
+      }
+      if envVal, ok := os.LookupEnv(envKey); ok {
+          return envVal, "env"
+      }
+      return def, "default"
+  }
+
+  Flag passed?   Env set?   Winner
+  No             No         default
+  No             Yes        env
+  Yes            No         flag
+  Yes            Yes        flag
+
+================================================================================
+                 FAIL-FAST VALIDATION
+================================================================================
+
+Check every required setting ONCE, at startup - never discover a missing
+value three requests deep into production traffic.
+
+  func (c Config) Validate() error {
+      if c.DatabaseURL == "" {
+          return errors.New("DATABASE_URL is required but not set")
+      }
+      return nil
+  }
+
+  cfg := LoadConfig()
+  if err := cfg.Validate(); err != nil {
+      log.Fatal(err) // bridges Level 33: log it, then exit immediately
+  }
+
+================================================================================
+              TYPE CONVERSION FOR ENV VARS
+================================================================================
+
+Every env var is a string. Parse it, and always check the error:
+
+  n, err := strconv.Atoi(raw)             // string -> int
+  b, err := strconv.ParseBool(raw)        // string -> bool
+  d, err := time.ParseDuration(raw)       // string -> time.Duration
+
+  if err != nil {
+      return fmt.Errorf("invalid value for %s: %q: %w", key, raw, err)
+  }
+
+================================================================================
+              HAND-ROLLED .env FILE SUPPORT
+================================================================================
+
+A .env file is just KEY=VALUE lines - no library needed to read one:
+
+  scanner := bufio.NewScanner(file)
+  for scanner.Scan() {
+      line := strings.TrimSpace(scanner.Text())
+      if line == "" || strings.HasPrefix(line, "#") {
+          continue // skip blank lines and comments
+      }
+      parts := strings.SplitN(line, "=", 2)
+      result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+  }
+
+KEY RULE: a .env file should never override a variable that's already a
+real environment variable - it only fills gaps for local dev convenience.
+
+================================================================================
+                      A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import (
+    "fmt"
+    "os"
+)
+
+type Config struct {
+    Port string
+}
+
+func LoadConfig() Config {
+    port, ok := os.LookupEnv("APP_PORT")
+    if !ok {
+        port = "8080"
+    }
+    return Config{Port: port}
+}
+
+func main() {
+    cfg := LoadConfig()
+    fmt.Printf("Listening on port %s\n", cfg.Port)
+}
+
+Output (no APP_PORT set):
+  Listening on port 8080
+
+Output (APP_PORT=9000 go run main.go):
+  Listening on port 9000
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. READING CONFIG
+   os.Getenv (simple) vs os.LookupEnv (distinguishes unset from empty)
+   flag.String/Int/Bool + flag.Parse()
+
+2. STRUCTURING CONFIG
+   One Config struct, one LoadConfig() function - never scattered calls
+
+3. PRECEDENCE
+   flags > environment variables > hardcoded defaults
+
+4. VALIDATION
+   Validate() at startup, log.Fatal on failure - fail fast, always
+
+5. TYPE CONVERSION
+   strconv/time.ParseDuration, always checking the error
+
+6. LOCAL DEV CONVENIENCE
+   Hand-rolled .env parser; never overrides real env vars
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Silent zero-value fallback for a required setting
+  cfg.DatabaseURL = os.Getenv("DATABASE_URL")   // "" starts "successfully"
+
+✅ RIGHT
+  if cfg.DatabaseURL == "" { return errors.New("DATABASE_URL is required") }
+
+---
+
+❌ WRONG: Config-loading code scattered through business logic
+  func ProcessOrder() { timeout := os.Getenv("ORDER_TIMEOUT") }
+
+✅ RIGHT: Load once, pass a typed Config down
+  func ProcessOrder(cfg Config) { /* uses cfg.OrderTimeout */ }
+
+---
+
+❌ WRONG: Using Getenv when "unset vs empty" actually matters
+  flags := os.Getenv("FEATURE_FLAGS")
+
+✅ RIGHT: Use LookupEnv
+  if flags, ok := os.LookupEnv("FEATURE_FLAGS"); ok { /* respect it exactly */ }
+
+---
+
+❌ WRONG: A .env loader that always calls os.Setenv, clobbering real vars
+
+✅ RIGHT: Only set if not already set
+  if _, alreadySet := os.LookupEnv(key); !alreadySet { os.Setenv(key, value) }
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the precedence flow diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Env vars, flags, Config structs, precedence, validation, .env parsing
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → os.Getenv vs os.LookupEnv comparison table
+   → Config precedence flow diagram
+   → Fail-fast validation flow diagram
+   → .env file parsing diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why not just use os.Getenv everywhere?
+A: Scattered os.Getenv calls give you no single place to see every setting
+   a program needs, no consistent defaults, and no way to tell "unset"
+   from "empty" where that matters. A Config struct plus LoadConfig() fixes
+   all three.
+
+Q: Do I need Viper or another config library for this level?
+A: No - every exercise uses only the standard library (os, flag, strconv,
+   time, bufio) and runs fully offline. Third-party libraries are further
+   reading only, never imported here.
+
+Q: Why do flags override environment variables?
+A: Env vars are usually set once per deployment; flags are passed
+   explicitly for one specific run, making them the most deliberate,
+   most recent instruction - so they win.
+
+Q: Why shouldn't .env override a real environment variable?
+A: A real, exported environment variable was set deliberately (often by
+   your deployment platform) and should never be silently overridden by
+   a leftover .env file. .env is for filling gaps in local dev only.
+
+Q: What does "fail fast" actually save me from?
+A: A missing DATABASE_URL caught by Validate() at startup is one obvious
+   error message before the server even starts. Left uncaught, the same
+   problem might not surface until a real request needs it - possibly in
+   production.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 34?
+================================================================================
+
+Level 35: Docker
+  - Packaging your configured Go binary into a container image
+  - Passing environment variables into a container at docker run time
+  - Why the configuration habits from this level make a Go binary
+    "container-friendly"
+
+You'll pass environment variables into containers constantly in Level 35 -
+exactly the os.Getenv/LoadConfig patterns you just built!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Configuration is what makes one binary work everywhere. Master it now and
+Docker (Level 35) will feel like a natural next step, not a new topic.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 35 - Docker
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- os.Getenv returns "" for unset OR empty; os.LookupEnv tells them apart
+- flag.Parse() must run before you read any flag's value
+- Precedence is always: flags > environment variables > defaults
+- Validate required config at startup and fail fast - never limp along
+- A .env file fills gaps for local dev - it never overrides a real env var
+
+Let's go! 🎉
+
+================================================================================

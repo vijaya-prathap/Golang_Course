@@ -1,0 +1,363 @@
+================================================================================
+                          LEVEL 35: DOCKER
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 35! You've mastered configuration (Level 34) - reading
+settings from environment variables instead of hardcoding them. Now it's
+time to learn DOCKER - packaging your Go program, together with everything
+it needs to run, into one portable image.
+
+================================================================================
+                    IMPORTANT: A DIFFERENT KIND OF LEVEL
+================================================================================
+
+Every level before this one (0-34) runs 100% through the Go toolchain alone -
+go run, go build, go test. Docker is a SEPARATE tool from a separate vendor,
+with its own daemon that has to be installed and running on your machine.
+
+In the environment that authored this course, the Docker daemon was NOT
+reachable (checked with `docker version` / `docker info` - the client was
+present but could not connect to a running daemon). Because of this:
+
+  - The Go source code in this level WAS genuinely compiled and run with
+    go build / go run, and its output IS real and verified, same as every
+    other level.
+  - The Dockerfile and docker-compose.yml content IS written correctly per
+    Docker's documented behavior.
+  - The docker build / docker run / docker compose OUTPUT shown in this
+    level's files is ILLUSTRATIVE ONLY - it was not actually captured from
+    a real build. Every such block is clearly labeled.
+
+When you run these commands yourself with Docker installed, trust YOUR OWN
+real output over any numbers or exact log text shown in this course.
+
+You will need Docker Desktop (or an equivalent Docker Engine) installed and
+running to actually complete the docker build / docker run / docker compose
+steps in the exercises.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why containerize a Go app, and why Go's static binaries are a great fit
+✅ Dockerfile basics: FROM, WORKDIR, COPY, RUN, EXPOSE, CMD/ENTRYPOINT
+✅ Multi-stage builds: compile in one stage, ship only the binary
+✅ .dockerignore for a clean, secret-free build context
+✅ Layer caching: ordering instructions so builds stay fast
+✅ Building and running containers, with mapped ports and env vars
+✅ docker-compose.yml: an app plus a database service
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 35 Duration: 4-5 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 2-3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 34 (Configuration)
+  ✅ Comfortable reading settings via os.Getenv and environment variables
+  ✅ Comfortable building/running Go binaries with go build
+  ✅ Docker Desktop (or equivalent) installed and running on YOUR machine
+
+If you haven't done Level 34, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Dockerfile Basics (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Complete Exercise 1 - 1 hour 25 min
+
+Day 2 - Multi-Stage Builds & .dockerignore (2 hours)
+  → Read README.md Sections 3-4 - 25 min
+  → Complete Exercises 2-3 - 1.5 hours
+
+Day 3 - Caching, Running & Environment Variables (2 hours)
+  → Read README.md Sections 5-7 - 30 min
+  → Complete Exercises 4-6 - 1.5 hours
+
+Day 4 - Compose & Real-World Practice (2 hours)
+  → Read README.md Sections 8-10 - 25 min
+  → Complete Exercises 7-10 - 1.5 hours
+
+Day 5 - Consolidate (0.5 hours)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is a Container?
+  → A package that bundles your program with a minimal, precisely-specified
+    slice of an operating system, so it runs identically everywhere
+  → Lighter than a virtual machine - shares the host's kernel, isolates
+    only the process, filesystem, and network
+
+Why Go Fits This Unusually Well:
+  → go build produces ONE statically-linked binary - no interpreter, no
+    VM, no runtime to install alongside it (unlike Python, Node, or Java)
+  → This means a Go container's runtime stage can be nearly empty: just
+    the binary, nothing else
+
+================================================================================
+                 A FIRST SIMPLE DOCKERFILE
+================================================================================
+
+  FROM golang:1.23
+  WORKDIR /app
+  COPY . .
+  RUN go build -o server .
+  EXPOSE 8080
+  CMD ["./server"]
+
+This works, but ships the ENTIRE golang toolchain image to production.
+Multi-stage builds (next) fix that.
+
+================================================================================
+                 MULTI-STAGE BUILDS
+================================================================================
+
+  # ---- build ----
+  FROM golang:1.23 AS builder
+  WORKDIR /app
+  COPY go.mod go.sum ./
+  RUN go mod download
+  COPY . .
+  RUN CGO_ENABLED=0 go build -o server .
+
+  # ---- runtime ----
+  FROM alpine:3.20
+  COPY --from=builder /app/server /server
+  CMD ["/server"]
+
+The build stage has the compiler and source code. The runtime stage starts
+FRESH and copies in only the compiled binary - no toolchain, no source,
+dramatically smaller image.
+
+================================================================================
+                 .dockerignore
+================================================================================
+
+Excludes files from ever reaching the build context - before ANY COPY runs:
+
+  .git
+  .env
+  *.md
+  .vscode/
+
+Never let .git or .env reach a build context. Secrets baked into an image
+layer can be extracted even if a later instruction appears to remove them.
+
+================================================================================
+                 LAYER CACHING ORDER
+================================================================================
+
+  COPY go.mod go.sum ./     <- only invalidated when DEPENDENCIES change
+  RUN go mod download       <- cached across ordinary source edits!
+  COPY . .                  <- invalidated by source changes (expected)
+  RUN go build -o server .
+
+Rule: least-frequently-changing instructions first, most-frequently-
+changing instructions last.
+
+================================================================================
+                 ENVIRONMENT VARIABLES = LEVEL 34, LIVE
+================================================================================
+
+  ENV PORT=8080                          (Dockerfile default)
+  docker run -e PORT=9090 myimage        (runtime override, no rebuild)
+
+Same image, different behavior per environment - exactly the configuration
+pattern Level 34 teaches, now driven by Docker (and later, Kubernetes in
+Level 36) instead of a local .env file.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. WHY CONTAINERIZE
+   Consistent environments everywhere; Go's static binaries need no runtime.
+
+2. DOCKERFILE BASICS
+   FROM, WORKDIR, COPY, RUN, EXPOSE, CMD/ENTRYPOINT.
+
+3. MULTI-STAGE BUILDS
+   Compile in one stage, ship only the binary in a minimal runtime stage.
+
+4. .dockerignore
+   Keep the build context clean and secret-free.
+
+5. LAYER CACHING
+   Dependency manifests before source code for fast repeated builds.
+
+6. ENVIRONMENT VARIABLES
+   ENV for defaults, -e to override at runtime - the Level 34 bridge.
+
+7. docker-compose
+   Multi-service apps: your Go app plus a database, in one YAML file.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Skipping multi-stage builds
+  FROM golang:1.23 ... CMD ["./server"]   // ships the whole toolchain
+
+✅ RIGHT: Multi-stage, copy only the compiled binary into a minimal base
+
+---
+
+❌ WRONG: No .dockerignore
+  COPY . .   // .git, .env, editor clutter all sent to the daemon
+
+✅ RIGHT: Write .dockerignore BEFORE your first COPY . .
+
+---
+
+❌ WRONG: Hardcoding secrets
+  ENV DATABASE_PASSWORD=hunter2   // baked into the image permanently
+
+✅ RIGHT: docker run -e DATABASE_PASSWORD=... at runtime
+
+---
+
+❌ WRONG: Unpinned tags
+  FROM golang:latest   // unreproducible - moves out from under you
+
+✅ RIGHT: FROM golang:1.23-alpine (exact, reproducible)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 30 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the multi-stage build diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1 - remember, the Go portions
+  are real and verifiable with go run; the Docker portions need YOUR OWN
+  Docker installation to actually run.
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview, quick start guide, and the Docker-availability caveat
+
+📄 README.md
+   → Full theory: why containerize, Dockerfile basics, multi-stage builds,
+     .dockerignore, layer caching, running containers, env vars, compose
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Real, verified Go output plus clearly-labeled illustrative Docker output
+
+📄 STUDY_GUIDE.md
+   → Multi-stage build diagram
+   → Conceptual image-size comparison table
+   → Layer-caching order diagram
+   → Dockerfile instruction reference table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Build/run/compose command reference
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does this level need a real tool install, when no other level did?
+A: Docker is a separate piece of software with its own daemon - not part of
+   the Go toolchain like `go get` dependencies (Gin in Level 28, a SQL
+   driver in Level 29). You need Docker Desktop (or equivalent) installed
+   and running.
+
+Q: Why is a multi-stage build so much smaller?
+A: The build stage needs the compiler and source; the runtime stage only
+   needs to RUN the already-compiled binary, so it can start from a nearly
+   empty base and skip the toolchain and source entirely.
+
+Q: Why copy go.mod before the rest of the source?
+A: Docker caches each instruction as a layer. Dependency downloads only
+   need to re-run when go.mod/go.sum change - not on every source edit.
+
+Q: How does this connect to Level 34?
+A: Level 34 teaches reading config from environment variables. This level
+   is what actually SETS those variables for a deployed container - ENV
+   for defaults, docker run -e to override per environment.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 35?
+================================================================================
+
+Level 36: Kubernetes
+  - Running containers at scale across a cluster
+  - Deployments, Pods, and Services
+  - ConfigMaps/Secrets building on this level's environment variables
+
+You'll containerize constantly in Level 36 and beyond - master it now!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Docker is how your programs leave your machine and become deployable
+software. Master it now and Kubernetes (Level 36) will make much more
+sense.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 36 - Kubernetes
+Estimated completion: 4-5 hours
+Difficulty: ⭐⭐⭐ (Advanced)
+
+Remember:
+- Docker needs its own daemon installed and running - it isn't part of
+  the Go toolchain
+- Multi-stage builds ship only the compiled binary, not the compiler
+- .dockerignore keeps secrets and clutter out of the build context
+- ENV + docker run -e is Level 34's configuration pattern, made real
+
+Let's go! 🎉
+
+================================================================================

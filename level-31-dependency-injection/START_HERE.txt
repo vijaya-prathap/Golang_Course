@@ -1,0 +1,368 @@
+================================================================================
+                    LEVEL 31: DEPENDENCY INJECTION
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 31! Level 30 (Repository-Service-Handler) had you wire a
+repository into a service, and a service into a handler, inside main().
+That wiring already WAS dependency injection - you just hadn't named it
+yet. This level names it, and goes deep.
+
+Dependency Injection (DI) sounds like framework territory - Spring in
+Java, DI containers in .NET. In Go it's much simpler: a type receives its
+dependencies as constructor arguments instead of building or reaching for
+them itself. No framework, no container, no magic - just function
+parameters and interfaces you already know.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What dependency injection actually means, with no framework mystique
+✅ Constructor injection: func NewThing(dep SomeInterface) *Thing
+✅ Why Go usually skips DI frameworks - main() as your composition root
+✅ Interface-based injection: swapping implementations freely
+✅ Injecting configuration alongside interfaces
+✅ The functional options pattern for optional dependencies
+✅ Hand-wiring a full layered dependency graph by hand
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 31 Duration: 5-6 hours
+- Theory & Concepts: 1.5 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 30 (Repository-Service-Handler)
+  ✅ Comfortable with interfaces (Level 15) and the NewX constructor
+     convention (Level 13)
+  ✅ Comfortable testing with fakes (Level 26)
+
+If you haven't done Level 30, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The Core Idea (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 35 min
+  → Complete Exercises 1-3 - 1 hour 15 min
+
+Day 2 - Interfaces, Config, and Options (2 hours)
+  → Read README.md Sections 4-7 - 35 min
+  → Complete Exercises 4-6 - 1.5 hours
+
+Day 3 - Testing and Wiring (2 hours)
+  → Read README.md Section 8 - 10 min
+  → Complete Exercises 7-8 - 1 hour 50 min
+
+Day 4 - Real-World Practice (1.5 hours)
+  → Read README.md Sections 9-11 - 20 min
+  → Complete Exercises 9-10 - 1 hour 10 min
+
+Day 5 - Consolidate (1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is Dependency Injection?
+  → A type receiving the things it depends on from the OUTSIDE, as
+    constructor arguments, instead of constructing them or reaching for
+    them itself
+  → That's the whole idea. Everything else is elaboration.
+
+Why It Matters:
+  → Testability: swap a real dependency for a fake in tests
+  → Flexibility: swap implementations without changing dependent code
+  → Decoupling: dependent code only needs to know the dependency's
+    interface (Level 15), nothing else
+
+================================================================================
+                 THE CORE REFACTOR: BEFORE AND AFTER
+================================================================================
+
+❌ BEFORE (hardcoded - builds its own dependency)
+
+  type ReportGenerator struct {
+      logger *ConsoleLogger
+  }
+
+  func NewReportGenerator() *ReportGenerator {
+      return &ReportGenerator{logger: &ConsoleLogger{}} // reaches for it
+  }
+
+✅ AFTER (injected - receives its dependency)
+
+  type ReportGenerator struct {
+      logger Logger // an interface now
+  }
+
+  func NewReportGenerator(logger Logger) *ReportGenerator {
+      return &ReportGenerator{logger: logger} // received, not built
+  }
+
+Same output. The difference only shows up in what each version LETS YOU
+DO NEXT: swap loggers, or substitute a test fake, with zero changes to
+ReportGenerator itself.
+
+================================================================================
+              CONSTRUCTOR INJECTION: NEARLY ALL OF GO DI
+================================================================================
+
+  func NewThing(dep SomeInterface) *Thing {
+      return &Thing{dep: dep}
+  }
+
+This one shape - a constructor that takes an interface parameter and
+stores it - is basically all of dependency injection in idiomatic Go.
+There's rarely a need for anything fancier.
+
+================================================================================
+                 WHY GO USUALLY SKIPS DI FRAMEWORKS
+================================================================================
+
+Java (Spring) and C# (.NET) lean on containers that wire dependencies
+together via reflection at runtime. Go's answer is simpler: write the
+constructor calls yourself, in main().
+
+  func buildApp() *Handler {
+      cfg := Config{...}
+      repo := NewRepository()
+      service := NewService(cfg, repo)
+      return NewHandler(service)
+  }
+
+This function IS the dependency graph - explicit, compiler-checked, and
+readable top to bottom. "A poor man's DI container is just a
+well-organized main() function."
+
+================================================================================
+              INTERFACE-BASED INJECTION: SWAP FREELY
+================================================================================
+
+  type PaymentGateway interface {
+      Charge(cents int) error
+  }
+
+  stripeProcessor := NewPaymentProcessor(StripeGateway{})
+  paypalProcessor := NewPaymentProcessor(PayPalGateway{})
+
+Same NewPaymentProcessor, same PaymentProcessor.Pay method - only the
+injected implementation changes. PaymentProcessor's own source code never
+mentions StripeGateway or PayPalGateway by name.
+
+================================================================================
+              FUNCTIONAL OPTIONS FOR OPTIONAL EXTRAS
+================================================================================
+
+  func NewCache(store Store, opts ...Option) *Cache
+
+  NewCache(store)                          // all defaults
+  NewCache(store, WithTTL(30*time.Second)) // one override, rest default
+
+The required dependency stays an explicit parameter; optional settings
+ride in through opts, so the constructor's signature never has to grow
+for every new optional knob.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE CORE IDEA
+   Receive dependencies from the outside, don't construct them internally.
+
+2. CONSTRUCTOR INJECTION
+   func NewThing(dep SomeInterface) *Thing { return &Thing{dep: dep} }
+
+3. NO FRAMEWORK NEEDED
+   main() (or a small buildApp()) is your hand-rolled composition root.
+
+4. INTERFACES MAKE IT SWAPPABLE
+   Depend on the interface, not the concrete type, and any implementation
+   (real or fake) plugs in.
+
+5. CONFIG VS BEHAVIOR
+   Inject plain structs for data, interfaces for behavior worth faking.
+
+6. FUNCTIONAL OPTIONS
+   opts ...Option handles optional extras without an exploding parameter
+   list.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: A type constructing its own dependency internally
+  func NewThing() *Thing {
+      return &Thing{dep: &ConcreteDep{}} // hidden coupling
+  }
+
+✅ RIGHT
+  func NewThing(dep SomeInterface) *Thing {
+      return &Thing{dep: dep}
+  }
+
+---
+
+❌ WRONG: Depending on a concrete type instead of an interface
+  type Service struct {
+      repo *PostgresRepository // can't swap in tests
+  }
+
+✅ RIGHT
+  type Service struct {
+      repo Repository // an interface
+  }
+
+---
+
+❌ WRONG: Global mutable state instead of injection
+  var globalHits = map[string]int{}
+  func RecordHit(page string) { globalHits[page]++ } // hidden, racy
+
+✅ RIGHT: Inject an isolated instance per caller instead
+
+---
+
+❌ WRONG: Wrapping everything in an interface "just in case"
+  type Adder interface { Add(a, b int) int } // one implementation ever
+
+✅ RIGHT: Keep it a plain function until a real second implementation
+  or testing need actually shows up (Level 15's Rule 4)
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the hardcoded-vs-injected diagram
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → DI fundamentals, constructor injection, no-framework wiring,
+     interfaces, config, functional options, composition roots
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification, all actually run and captured
+
+📄 STUDY_GUIDE.md
+   → Hardcoded vs injected dependency diagram
+   → Constructor injection pattern anatomy
+   → Interface-swap and dependency-graph diagrams
+   → Functional options pattern diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Isn't dependency injection a framework thing?
+A: Not in Go. It's a type receiving its dependencies as constructor
+   arguments - no framework, container, or annotation required.
+
+Q: Why does Go's standard library not ship a DI container?
+A: Explicit constructor calls in main() are simple, readable, and
+   compiler-checked. A well-organized main() function already IS a
+   "poor man's DI container."
+
+Q: When do I inject an interface vs a plain struct?
+A: Interface for behavior worth faking or swapping (a database, a
+   network client). Plain struct for data that's just configuration.
+
+Q: What's the functional options pattern for?
+A: Adding optional, growable configuration to a constructor without
+   forcing every call site to pass every possible setting.
+
+Q: Are third-party DI frameworks ever worth it in Go?
+A: For very large, deep dependency graphs, sometimes. For most Go
+   programs, hand-wiring in main() is simpler and more readable.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 31?
+================================================================================
+
+Level 32: Authentication & JWT
+  - Verifying user identity with JSON Web Tokens
+  - Issuing, signing, and validating tokens
+  - Middleware that injects an authenticated user into request handling
+
+You'll use constructor injection constantly in Level 32 - auth middleware
+and token validators plug in exactly like this level's interfaces did!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+Dependency injection is how real Go applications stay flexible and
+testable as they grow. Master it now, and Level 32's middleware and
+every future level's layered services will click into place naturally.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 32 - Authentication & JWT
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- DI = receive dependencies from the outside, don't construct them
+- func NewThing(dep SomeInterface) *Thing is nearly all of Go DI
+- main() is your composition root - no framework required
+- Depend on interfaces, not concretions, and everything stays swappable
+
+Let's go! 🎉
+
+================================================================================

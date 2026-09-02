@@ -1,0 +1,395 @@
+================================================================================
+                          LEVEL 25: GENERICS
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 25! You've mastered Context (Level 24). Now it's time to
+learn GENERICS - how to write ONE function or type that works safely across
+MANY types, without giving up the compiler's type checking.
+
+Before generics, you had two bad options: write the same function once per
+type (SumInts, SumFloats, ...), or write it once using `any` and lose type
+safety (runtime panics from type assertions instead of compile errors).
+Generics give you a third option - one implementation, full safety.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ Why generics exist: duplication vs. any's lost type safety
+✅ Type parameter syntax - declaring, calling, and type inference
+✅ The any constraint (loosest) and the comparable constraint (==, map keys)
+✅ Defining your own constraints locally with type sets - fully offline
+✅ Generic functions: Map, Filter, Reduce, revisited from Level 11
+✅ Generic types: Stack[T], Pair[K, V], and a comprehensive Cache[K, V]
+✅ Type inference rules - when it works, and when it genuinely fails
+✅ When a small interface (Level 15) beats a generic type parameter
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 25 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 24 (Context)
+  ✅ Comfortable with functions as values and higher-order functions (Level 11)
+  ✅ Comfortable with interfaces and small-interface design (Level 15)
+  ✅ Comfortable with structs and methods (Levels 13-14)
+
+If you haven't done Level 24, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The Problem and the Syntax (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 30 min
+  → Complete Exercises 1-2 - 1 hour 20 min
+
+Day 2 - Constraints (2.5 hours)
+  → Read README.md Sections 3-5 - 35 min
+  → Complete Exercises 3-5 (including 2 real compile errors) - 2 hours
+
+Day 3 - Generic Functions & Types (2 hours)
+  → Read README.md Sections 6-7 - 25 min
+  → Complete Exercises 6-8 - 1.5 hours
+
+Day 4 - Inference & Judgment (1.5 hours)
+  → Read README.md Sections 8-9 - 20 min
+  → Complete Exercise 9 (including a real compile error) - 1 hour 10 min
+
+Day 5 - Consolidate (1.5 hours)
+  → Complete Exercise 10 and bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Are Generics?
+  → A way to write a function or type once, using a placeholder ("type
+    parameter") for a type that's filled in at each call site
+  → The compiler checks every call and generates correct, type-safe code
+    for each concrete type you use
+
+Why Generics Matter:
+  → Before Go 1.18, "works with any type" meant either copy-pasting the same
+    function per type, or using `any` and losing compile-time safety
+  → Generics let you write it once AND keep the compiler's help
+
+================================================================================
+                 BEFORE / AFTER: THE CORE MOTIVATION
+================================================================================
+
+BEFORE (duplication):
+
+  func SumInts(nums []int) int { ... }
+  func SumFloats(nums []float64) float64 { ... }
+
+BEFORE (any - loses type safety):
+
+  func SumAny(nums []any) any {
+      var total int
+      for _, n := range nums {
+          total += n.(int)   // panics at runtime if the slice isn't all ints
+      }
+      return total
+  }
+
+AFTER (generics - one function, fully type-safe):
+
+  type Number interface {
+      int | int64 | float64
+  }
+
+  func Sum[T Number](nums []T) T {
+      var total T
+      for _, n := range nums {
+          total += n
+      }
+      return total
+  }
+
+  Sum([]int{1, 2, 3})         // works, T = int
+  Sum([]float64{1.5, 2.5})    // works, T = float64
+  Sum([]string{"a", "b"})     // does NOT compile - string isn't a Number
+
+================================================================================
+                 TYPE PARAMETER SYNTAX
+================================================================================
+
+  func Map[T, U any](s []T, f func(T) U) []U { ... }
+
+  Calling with inference (most common):
+    Map(nums, func(n int) string { return fmt.Sprintf("%d", n) })
+
+  Calling with explicit type arguments (always valid):
+    Map[int, string](nums, func(n int) string { return fmt.Sprintf("%d", n) })
+
+================================================================================
+                 CONSTRAINTS: any, comparable, CUSTOM
+================================================================================
+
+  any          → accepts anything, but you can't do much without a type
+                 assertion first
+
+  comparable   → any type supporting == and != - required for == inside a
+                 generic function, or to use the type parameter as a map key
+
+  custom       → your own interface with a type set, defined LOCALLY, no
+                 external packages needed:
+
+                 type Number interface {
+                     int | int64 | float64
+                 }
+
+================================================================================
+                 GENERIC TYPES: Stack[T] AND Pair[K, V]
+================================================================================
+
+  type Stack[T any] struct {
+      items []T
+  }
+
+  func (s *Stack[T]) Push(v T) { s.items = append(s.items, v) }
+  func (s *Stack[T]) Pop() (T, bool) { ... }
+
+  type Pair[K, V any] struct {
+      Key   K
+      Value V
+  }
+
+Every method on a generic type must repeat its type parameter:
+func (s *Stack[T]) Push(...) - not func (s *Stack) Push(...).
+
+================================================================================
+                 TYPE INFERENCE: WHEN IT FAILS
+================================================================================
+
+Go infers type arguments from the REGULAR ARGUMENTS you pass - never from
+the return type alone.
+
+  func Zero[T any]() T { var z T; return z }
+
+  zero := Zero()        // ❌ does NOT compile - nothing to infer T from
+  zero := Zero[int]()   // ✅ must specify explicitly
+
+Real compiler error (captured during authoring):
+  in call to Zero, cannot infer T (declared at ./main.go:5:11)
+
+================================================================================
+                 WHEN NOT TO USE GENERICS
+================================================================================
+
+Generics are for the SAME algorithm/structure over arbitrary ELEMENT types.
+They are NOT a replacement for small interfaces (Level 15) when what varies
+is BEHAVIOR, not the stored type.
+
+  // ✅ A plain interface already expresses "things that have an area"
+  type Shape interface {
+      Area() float64
+  }
+  func TotalArea(shapes []Shape) float64 { ... }   // mixes Circle + Rectangle
+
+  // ❌ Overkill - only works with ONE concrete shape type per call
+  func TotalArea[T Shape](shapes []T) float64 { ... }
+
+Don't generic-ize "just in case." Start concrete, add a type parameter only
+when you genuinely need a second type.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE PROBLEM
+   Duplication (one func per type) vs. any (loses type safety) - generics
+   give you neither downside.
+
+2. SYNTAX
+   func Name[T Constraint](params) ReturnType - type parameters in [...].
+
+3. CONSTRAINTS
+   any (anything) -> comparable (==, map keys) -> custom type-set interface
+   (arithmetic, custom operators).
+
+4. GENERIC TYPES
+   Struct types can carry type parameters too; methods must repeat them.
+
+5. INFERENCE
+   Works when a type parameter appears in a regular argument. Fails when it
+   appears only in the return type - specify explicitly then.
+
+6. JUDGMENT
+   Generics for arbitrary element types. Small interfaces (Level 15) for
+   arbitrary behavior. Don't force one to do the other's job.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Forgetting comparable and using == anyway
+  func Contains[T any](s []T, v T) bool {
+      for _, item := range s {
+          if item == v { return true }   // any doesn't guarantee ==
+      }
+      return false
+  }
+  Real error: invalid operation: item == v (incomparable types in type set)
+
+✅ RIGHT
+  func Contains[T comparable](s []T, v T) bool { ... }
+
+---
+
+❌ WRONG: Overusing generics where a plain interface would be simpler
+  func TotalArea[T Shape](shapes []T) float64 { ... }
+
+✅ RIGHT
+  func TotalArea(shapes []Shape) float64 { ... }
+
+---
+
+❌ WRONG: Passing a type outside a custom constraint's type set
+  Sum([]string{"a", "b"})   // Number is int | int64 | float64
+  Real error: string does not satisfy Number (string missing in int | int64 | float64)
+
+---
+
+❌ WRONG: Expecting inference when T only appears in the return type
+  zero := Zero()   // cannot infer T
+  Real error: in call to Zero, cannot infer T (declared at ./main.go:5:11)
+
+✅ RIGHT: zero := Zero[int]()
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-5 (about 35 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the constraint hierarchy and decision tree
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, including the 3 real compile-error steps
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → Syntax, constraints, generic functions/types, and design judgment
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs AND real compiler errors for verification
+
+📄 STUDY_GUIDE.md
+   → Type parameter syntax anatomy
+   → Constraint hierarchy and generics-vs-interfaces decision tree
+   → Generic Stack[T] memory/operation diagram
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table with real compiler errors
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Is any the same as interface{}?
+A: Yes - any is a built-in alias for the empty interface, introduced
+   alongside generics in Go 1.18.
+
+Q: Why can't I use == inside a generic function constrained with any?
+A: any doesn't guarantee == is defined. Use comparable instead.
+
+Q: Do custom constraints need an external package?
+A: No - type Number interface { int | int64 | float64 } is just a regular
+   interface with a type set, defined entirely in your own code.
+
+Q: When should I use a generic type parameter instead of an interface?
+A: When the same algorithm/structure needs to work over arbitrary element
+   types that don't need to "do" anything (a stack, a cache, Sum). Use an
+   interface (Level 15) when concrete types need to behave differently.
+
+Q: Why does Go sometimes require explicit type arguments?
+A: Inference only looks at regular arguments. If a type parameter appears
+   only in the return type, there's nothing to infer it from.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 25?
+================================================================================
+
+Level 26: Testing
+  - Table-driven tests with the testing package
+  - go test, subtests, and coverage
+  - Testing generic functions across multiple type instantiations
+  - Mocking with the small-interface patterns from Level 15
+
+You'll write tests for the generic functions and types you just built!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-5
+4. Come back and start Exercise 1
+
+Generics round out Go's type system - between concrete types, interfaces,
+and now type parameters, you can express almost any shape of reusable code.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 26 - Testing
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- Generics solve duplication AND any's lost type safety at the same time
+- any is the loosest constraint, comparable adds ==/!=, custom constraints
+  add arithmetic and other type-specific operators
+- Generic types must repeat their type parameter on every method
+- Type inference works from regular arguments only - not from return types
+- Generics are for element types; small interfaces (Level 15) are for behavior
+
+Let's go! 🎉
+
+================================================================================

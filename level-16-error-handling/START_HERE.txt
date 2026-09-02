@@ -1,0 +1,424 @@
+================================================================================
+                      LEVEL 16: ERROR HANDLING
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 16! You've mastered interfaces (Level 15). Now it's time to
+make ERRORS the explicit subject - the pattern you've been typing since
+Level 3 (value, err := strconv.Atoi(...)) finally gets fully explained.
+
+Here's the punchline up front: error is JUST AN INTERFACE. Everything you
+learned in Level 15 - implicit satisfaction, type assertions, the typed-nil
+gotcha - applies directly to error handling.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ The error interface and why Go returns errors instead of throwing
+✅ Creating errors with errors.New and fmt.Errorf
+✅ The return-early flow and adding context at every layer
+✅ Wrapping errors with %w and walking chains with errors.Unwrap
+✅ errors.Is - matching sentinel errors anywhere in a chain
+✅ errors.As - extracting custom error types and their fields
+✅ Custom error types with structured fields
+✅ The typed-nil error trap - and why you must return error, not a concrete type
+✅ panic and recover - and when panicking is (rarely) the right call
+✅ defer for cleanup alongside error returns
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 16 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises: 3 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 15 (Interfaces)
+  ✅ Comfortable with implicit interface satisfaction
+  ✅ Comfortable with type assertions and type switches
+  ✅ Understand the typed-nil interface gotcha (this level puts it to work)
+  ✅ Comfortable with defer and its LIFO ordering (from Level 11)
+
+If you haven't done Level 15, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - The Foundation (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 35 min
+  → Complete Exercises 1-2 - 1 hour 15 min
+
+Day 2 - Wrapping and Inspecting Chains (2 hours)
+  → Read README.md Sections 4-6 - 30 min
+  → Complete Exercises 3-5 - 1.5 hours
+
+Day 3 - Custom Types and the Typed-Nil Trap (1.5 hours)
+  → Read README.md Sections 7-8 - 20 min
+  → Complete Exercises 6-7 - 1 hour 10 min
+
+Day 4 - panic, recover, and Cleanup (1.5 hours)
+  → Read README.md Sections 9-10 - 20 min
+  → Complete Exercise 8 - 1 hour 10 min
+
+Day 5 - Best Practices in Practice (1.5 hours)
+  → Read README.md Sections 11-12 - 15 min
+  → Complete Exercises 9-10 - 1 hour 15 min
+
+Day 6 - Consolidate (0.5-1 hour)
+  → Try bonus challenges
+  → Review with QUICK_REFERENCE.md
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Is an Error, Really?
+  → Just a value: anything with an Error() string method
+  → No exceptions, no throw, no hidden control flow
+  → A function that can fail SAYS SO in its signature: (Result, error)
+
+Why Errors Matter:
+  → Every real program deals with things that can go wrong: bad input,
+    missing files, network failures, invalid data
+  → Go makes failure visible right where it happens, instead of hiding
+    it behind a distant catch block
+
+================================================================================
+                    THE error INTERFACE
+================================================================================
+
+  type error interface {
+      Error() string
+  }
+
+  That's the WHOLE interface. Any type with that one method IS an error -
+  implicitly, exactly like every interface from Level 15.
+
+================================================================================
+                 THE FUNDAMENTAL PATTERN
+================================================================================
+
+  result, err := divide(10, 2)
+  if err != nil {
+      fmt.Println("Error:", err)
+      return
+  }
+  fmt.Println("10 / 2 =", result)
+
+  nil means success. Non-nil means "something went wrong."
+
+================================================================================
+                 CREATING ERRORS
+================================================================================
+
+  errors.New("division by zero")           // fixed message
+  fmt.Errorf("user %d not found", id)       // formatted message
+  fmt.Errorf("loading config: %w", err)     // WRAPPED - keeps err traceable
+
+  Message style: lowercase, no trailing period, include relevant values.
+
+================================================================================
+                 WRAPPING AND UNWRAPPING
+================================================================================
+
+  base := errors.New("connection refused")
+  wrapped := fmt.Errorf("dialing database: %w", base)
+  top := fmt.Errorf("starting server: %w", wrapped)
+
+  fmt.Println(top)
+  // starting server: dialing database: connection refused
+
+  errors.Unwrap(top)      // -> wrapped
+  errors.Unwrap(wrapped)  // -> base
+  errors.Unwrap(base)     // -> nil
+
+  KEY GOTCHA - %v copies the TEXT but NOT the chain:
+  fmt.Errorf("dialing database: %v", base)  // errors.Unwrap gives nil!
+
+================================================================================
+                 errors.Is AND errors.As
+================================================================================
+
+  errors.Is(err, target)   -> "is target ANYWHERE in err's chain?"
+  errors.As(err, &target)  -> "is there an error of THIS TYPE in the chain?
+                                if so, copy it into target."
+
+  var ErrNotFound = errors.New("not found")
+  err := fmt.Errorf("loading invoice: %w", fmt.Errorf("order 42: %w", ErrNotFound))
+
+  errors.Is(err, ErrNotFound)   // true  - found through TWO layers
+  err == ErrNotFound             // false - only sees the outermost error
+
+  RULE: once wrapping is possible, use errors.Is, never ==.
+
+================================================================================
+                 CUSTOM ERROR TYPES
+================================================================================
+
+  type ValidationError struct {
+      Field, Reason string
+  }
+  func (e *ValidationError) Error() string {
+      return fmt.Sprintf("invalid %s: %s", e.Field, e.Reason)
+  }
+
+  Use a sentinel (errors.New) when callers only need to recognize the KIND
+  of failure. Use a custom type (struct + Error()) when callers need DATA
+  about the failure - extract it with errors.As.
+
+================================================================================
+                 THE TYPED-NIL ERROR TRAP
+================================================================================
+
+  func broken() *MyError { return nil }   // ❌ concrete pointer return type
+  var err error = broken()
+  err == nil   // FALSE! the interface holds (*MyError, nil) - non-nil!
+
+  func fixed() error { return nil }       // ✅ interface return type
+  var err error = fixed()
+  err == nil   // TRUE - untyped nil, interface is (nil, nil)
+
+  ALWAYS declare error, never a concrete error pointer, as a return type.
+  (This is Level 15's typed-nil interface gotcha, applied directly.)
+
+================================================================================
+                 panic AND recover
+================================================================================
+
+  panic("message")   // stops execution, runs defers, unwinds, crashes if
+                      // nothing recovers it
+
+  func safe() (err error) {
+      defer func() {
+          if r := recover(); r != nil {       // ONLY works inside a defer
+              err = fmt.Errorf("recovered: %v", r)
+          }
+      }()
+      riskyCall()
+      return nil
+  }
+
+  panic is for BUGS and impossible states. error is for expected failures -
+  bad input, missing files, anything a user could trigger. When in doubt,
+  return an error.
+
+================================================================================
+                    A SIMPLE EXAMPLE
+================================================================================
+
+package main
+
+import (
+    "errors"
+    "fmt"
+)
+
+var ErrNotFound = errors.New("not found")
+
+func find(id int) error {
+    if id != 1 {
+        return fmt.Errorf("looking up id %d: %w", id, ErrNotFound)
+    }
+    return nil
+}
+
+func main() {
+    err := find(42)
+    if errors.Is(err, ErrNotFound) {
+        fmt.Println("not found:", err)
+    }
+}
+
+Output:
+  not found: looking up id 42: not found
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE INTERFACE
+   error is one method: Error() string. Any type with it IS an error.
+
+2. CREATING
+   errors.New for fixed text, fmt.Errorf for formatted text and wrapping.
+
+3. WRAPPING
+   %w links errors into a chain; %v copies text only and breaks the chain.
+
+4. INSPECTING
+   errors.Is for sentinel identity, errors.As for typed data extraction.
+
+5. THE TRAP
+   Return error, never a concrete error pointer - or nil lies to you.
+
+6. THE ESCAPE HATCH
+   panic for bugs, error for everything else. recover() only inside defer.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Ignoring an error
+  value, _ := strconv.Atoi(input)
+
+✅ RIGHT
+  value, err := strconv.Atoi(input)
+  if err != nil { return fmt.Errorf("parsing input: %w", err) }
+
+---
+
+❌ WRONG: Comparing a possibly-wrapped error with ==
+  if err == ErrNotFound { ... }
+
+✅ RIGHT
+  if errors.Is(err, ErrNotFound) { ... }
+
+---
+
+❌ WRONG: Returning a concrete error pointer type
+  func validate() *ValidationError { return nil }
+
+✅ RIGHT
+  func validate() error { return nil }
+
+---
+
+❌ WRONG: Panicking for a normal, expected failure
+  if !ok { panic("user not found") }
+
+✅ RIGHT
+  if !ok { return fmt.Errorf("user not found") }
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-6 (about 60 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the error-chain and decision-tree diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → The error interface, wrapping, Is/As, custom types, panic/recover
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Expected outputs for verification
+
+📄 STUDY_GUIDE.md
+   → The error interface diagram
+   → Error-chain diagrams showing Is/As traversal
+   → Sentinel vs custom-type vs ad-hoc decision tree
+   → panic-vs-error decision tree
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential syntax
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why doesn't Go have try/catch?
+A: Errors are ordinary values, returned like any other value. A function's
+   signature tells you it can fail, and if err != nil handles it right
+   where the call happens.
+
+Q: When do I use errors.Is vs errors.As?
+A: errors.Is asks "is this SPECIFIC value anywhere in the chain?" (sentinels).
+   errors.As asks "is there an error of this TYPE anywhere in the chain -
+   give it to me so I can read its fields?" (custom types).
+
+Q: Why does err != nil sometimes lie?
+A: The typed-nil trap - a function declared to return a concrete error
+   pointer type, returning a nil pointer of that type, produces a non-nil
+   error interface. Always declare error as the return type.
+
+Q: When is it okay to panic?
+A: Almost never in application code. Reserve it for programmer bugs and
+   impossible states - not for expected failures like bad input.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 16?
+================================================================================
+
+Level 17: Packages & Modules
+  - Organizing code into multiple packages
+  - Exported vs unexported identifiers at package scale
+  - go.mod, module paths, and third-party dependencies
+  - Designing clean package APIs (including which errors to export)
+
+With Level 16 done, you've completed the ENTIRE OOP CONCEPTS tier
+(Levels 12-16): pointers, structs, methods, interfaces, and error handling!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-6
+4. Come back and start Exercise 1
+
+Error handling is how your programs fail gracefully instead of crashing
+unexpectedly. Master this now, and every future level - packages, file
+handling, JSON, concurrency - builds on error patterns you already know.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 17 - Packages & Modules
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐ (Intermediate-Advanced)
+
+Remember:
+- error is just an interface: Error() string
+- Return errors, don't throw them - if err != nil is the whole system
+- %w wraps into a chain; errors.Is and errors.As walk that chain
+- Always declare error, never a concrete pointer, as a return type
+- panic is for bugs, error is for everything else
+
+Let's go! 🎉
+
+================================================================================

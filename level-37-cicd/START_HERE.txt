@@ -1,0 +1,411 @@
+================================================================================
+                          LEVEL 37: CI/CD
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 37! You've mastered Kubernetes (Level 36) - describing your
+running application's desired state in YAML and letting a cluster keep
+reality matching it. Now it's time to learn CI/CD - how every push and every
+pull request gets automatically built, tested, and (optionally) shipped,
+without anyone having to remember to run the checks by hand.
+
+⚠️  IMPORTANT ENVIRONMENT NOTE
+--------------------------------------------------------------------------------
+This level is not pure Go code, and it needed the same honest adaptation
+Levels 35 (Docker) and 36 (Kubernetes) already gave you. Here is exactly
+what was and wasn't verified:
+
+  ✅ REAL: every Go command a CI workflow would run - go build, go vet,
+     gofmt, go test -race -cover, and golangci-lint run - was genuinely
+     executed in this environment. golangci-lint (v1.64.8) happened to be
+     installed here, so its output is real, captured output too.
+
+  ✅ REAL: every .github/workflows/*.yml file in this level was validated
+     with a real YAML parser (python3 -c "import yaml; yaml.safe_load(...)")
+     confirming valid syntax and a structurally sound workflow (on/jobs/
+     runs-on/steps), per GitHub Actions' documented, stable schema.
+
+  ❌ NOT POSSIBLE HERE: an actual GitHub-hosted run of any workflow. That
+     needs a real GitHub repository and GitHub's own runner infrastructure -
+     neither exists in this sandbox (there is no git repository anywhere in
+     this course). docker and kubectl client binaries exist here, but no
+     Docker daemon and no live Kubernetes cluster are reachable - so the
+     Docker-push and Kubernetes-deploy portions of this level are
+     illustrative sketches, exactly like Levels 35 and 36 were honest about.
+
+When you push these workflows to a real GitHub repository yourself, trust
+YOUR real Actions run over anything shown in these files.
+--------------------------------------------------------------------------------
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ What CI (Continuous Integration) and CD (Continuous Delivery/Deployment)
+   each mean, and the problem they solve
+✅ GitHub Actions fundamentals: workflows, triggers, jobs, steps, runners
+✅ A complete, real, working build+vet+test workflow for Go
+✅ Quality gates: gofmt (and a genuine exit-code gotcha you'll hit
+   yourself), race detection, coverage, golangci-lint
+✅ Matrix builds across multiple Go versions
+✅ Dependency caching - what actually gets cached and why
+✅ Building and pushing a Docker image in CI (bridging Level 35)
+✅ Sketching a Kubernetes deploy job (bridging Level 36)
+✅ Rolling, blue-green, and canary deployment strategies
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 37 Duration: 5-6 hours
+- Theory & Concepts: 1.5-2 hours
+- Hands-on Exercises: 3-4 hours
+- Bonus Challenges: 1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 36 (Kubernetes)
+  ✅ Comfortable with Dockerfiles and multi-stage builds (Level 35)
+  ✅ Comfortable with go test, table-driven tests, -race, -cover (Level 26)
+  ✅ Basic familiarity with YAML (used throughout Levels 35-36)
+
+If you haven't done Level 36, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - CI/CD Concepts & GitHub Actions Anatomy (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-3 - 35 min
+  → Complete Exercise 1 - 1 hour 15 min
+
+Day 2 - Quality Gates (2.5 hours)
+  → Read README.md Section 4 - 25 min
+  → Complete Exercises 2-4 - 2 hours
+
+Day 3 - Triggers, Scale, and Speed (2 hours)
+  → Read README.md Sections 5-6 - 25 min
+  → Complete Exercises 5-7 - 1.5 hours
+
+Day 4 - Shipping: Docker & Kubernetes Bridging (2 hours)
+  → Read README.md Sections 7-9 - 30 min
+  → Complete Exercises 8-9 - 1.5 hours
+
+Day 5 - Comprehensive Practice & Consolidation (1.5 hours)
+  → Complete Exercise 10 - 1 hour
+  → Try bonus challenges
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What is CI/CD?
+  → CI (Continuous Integration): every push/PR is automatically built and
+    tested. Problems get caught in minutes, on the exact change that
+    introduced them - not weeks later, tangled up with everyone else's work.
+  → CD (Continuous Delivery/Deployment): once a change passes CI, it's
+    automatically packaged and, depending on how far you take it,
+    automatically shipped to production.
+
+Why It Matters:
+  → Without it, "please remember to run the tests before merging" is a
+    request, not a guarantee - and guarantees are what production systems
+    actually need.
+
+================================================================================
+                 GITHUB ACTIONS: THE FOUR CONCEPTS
+================================================================================
+
+1. WORKFLOW - a YAML file under .github/workflows/, auto-discovered by GitHub
+
+2. TRIGGER (on:) - the event that starts a run
+
+  on:
+    push:
+      branches: [main]
+    pull_request:
+      branches: [main]
+
+3. JOB - an independent unit of work; jobs run in PARALLEL by default,
+   unless linked with needs:
+
+4. STEP - one action within a job, run sequentially; either `uses:` a
+   pre-built action, or `run:` a raw shell command
+
+  jobs:
+    build-and-test:
+      runs-on: ubuntu-latest          <- the RUNNER
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-go@v5
+          with:
+            go-version: '1.23'
+        - run: go build ./...
+        - run: go vet ./...
+        - run: go test ./...
+
+================================================================================
+                 THE gofmt GOTCHA (LEARN THIS NOW)
+================================================================================
+
+gofmt -l . lists files that need reformatting - but it STILL exits 0, even
+when it lists something. Confirmed for real in this environment:
+
+  $ gofmt -l .
+  main.go
+  $ echo $?
+  0
+
+A CI step that trusts this exit code will NEVER fail, no matter how
+mangled the formatting is. The fix: check whether the OUTPUT is empty,
+not the exit code.
+
+  - name: Check formatting (gofmt)
+    run: |
+      unformatted=$(gofmt -l .)
+      if [ -n "$unformatted" ]; then
+        echo "$unformatted"
+        exit 1
+      fi
+
+================================================================================
+                    THE QUALITY GATE SEQUENCE
+================================================================================
+
+Run cheapest/fastest checks first, so a broken build fails in seconds:
+
+  1. gofmt   - check for EMPTY output (the gotcha above)
+  2. build   - go build ./...
+  3. vet     - go vet ./...
+  4. lint    - golangci-lint run ./...
+  5. test    - go test -race -cover ./...   (slowest - -race adds overhead)
+
+================================================================================
+                 BRIDGING LEVELS 35 AND 36
+================================================================================
+
+A `docker` job, gated with `needs: build-and-test`, builds and pushes the
+multi-stage image from Level 35 - using secrets for registry credentials,
+never a hardcoded password.
+
+A `deploy` job, gated with `needs: docker`, runs `kubectl set image` and
+`kubectl rollout status` - the scripted equivalent of the rolling update
+you did by hand in Level 36.
+
+Both are illustrative sketches here (no real registry or cluster in this
+sandbox) but are correct per their documented, stable behavior.
+
+================================================================================
+                    DEPLOYMENT STRATEGIES AT A GLANCE
+================================================================================
+
+  ROLLING:     replace old instances a few at a time - no extra infra,
+               moderate rollback speed
+  BLUE-GREEN:  deploy fully to an idle environment, flip traffic at once -
+               instant rollback, needs double the infrastructure
+  CANARY:      send a small % of traffic to the new version first - small
+               blast radius, needs traffic-splitting + monitoring
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. CI vs CD
+   CI = auto build+test every change. CD = auto package/ship what passed.
+
+2. WORKFLOW ANATOMY
+   on: (trigger) -> jobs: (parallel, or needs:-ordered) -> steps: (run/uses)
+
+3. THE GATE SEQUENCE
+   gofmt (check OUTPUT!) -> build -> vet -> lint -> test -race -cover
+
+4. NEVER HARDCODE SECRETS
+   Always ${{ secrets.NAME }}, configured in repo settings - never a
+   literal credential in the YAML file.
+
+5. DEPLOYMENT STRATEGIES
+   Rolling (default, gradual) / Blue-Green (instant rollback, double infra)
+   / Canary (smallest blast radius, needs traffic-splitting)
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Trusting gofmt -l .'s exit code alone
+  gofmt -l .                       # exits 0 even when files are listed!
+
+✅ RIGHT: Check for empty output
+  test -z "$(gofmt -l .)"
+
+---
+
+❌ WRONG: Unpinned action versions
+  uses: actions/checkout@main      # can change behavior with no repo change
+
+✅ RIGHT
+  uses: actions/checkout@v4
+
+---
+
+❌ WRONG: Secrets hardcoded in the workflow file
+  run: docker login -u admin -p hunter2
+
+✅ RIGHT
+  run: docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+---
+
+❌ WRONG: No dependency caching
+  cache: false                     # every run re-downloads everything
+
+✅ RIGHT
+  cache: true
+
+---
+
+❌ WRONG: Testing only on merge to main
+  on:
+    push:
+      branches: [main]
+
+✅ RIGHT: Test every PR before it can even be merged
+  on:
+    push:
+      branches: [main]
+    pull_request:
+      branches: [main]
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 40 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the pipeline flow and quality-gates diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview, verification-scope honesty note, and quick start guide
+
+📄 README.md
+   → Full theory and comprehensive guide
+   → GitHub Actions anatomy, quality gates, matrix builds, caching,
+     Docker/Kubernetes bridging, deployment strategies
+
+📄 EXERCISES.md
+   → 10 detailed step-by-step exercises + 3 bonus challenges
+   → Copy-paste ready bash commands
+   → Real, genuinely captured expected outputs for every Go command
+
+📄 STUDY_GUIDE.md
+   → CI/CD pipeline flow diagram
+   → GitHub Actions anatomy diagram
+   → Quality-gates checklist diagram
+   → Deployment-strategy comparison table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → The core gate sequence, ready to copy
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does gofmt -l . exit 0 even when it lists files?
+A: gofmt -l only returns non-zero on a genuine parse error, never merely
+   because a file needs reformatting - confirmed for real in this
+   environment. Check its OUTPUT, not its exit code.
+
+Q: Was any of this actually run on GitHub?
+A: No - there's no git repository anywhere in this course, so nothing was
+   pushed to real GitHub infrastructure. Every Go command was genuinely run
+   locally, and every workflow YAML file was validated as syntactically
+   correct - but a real, GitHub-hosted run was never exercised.
+
+Q: Do I need Docker or a Kubernetes cluster to complete this level?
+A: No. Like Levels 35 and 36, the Docker-push and Kubernetes-deploy
+   sections are illustrative sketches. Everything else - the Go commands
+   and the workflow YAML - is fully real and something you can verify on
+   your own machine right now.
+
+Q: What's the difference between CI and CD?
+A: CI = automatically build and test every change. CD = what happens after
+   CI passes: Continuous Delivery usually still has a human click
+   "release"; Continuous Deployment ships with no human in the loop.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 37?
+================================================================================
+
+Level 38: Production Debugging
+  - Diagnosing issues in a system that's already running and already shipped
+  - Reading logs, metrics, and traces under real production pressure
+  - Everything from Levels 33 (Logging) through 37 (CI/CD) comes together
+    once something goes wrong at 3 AM
+
+You'll rely on the pipeline you built here constantly in Level 38 - a fast,
+trustworthy CI/CD pipeline is what lets you ship a fix with confidence once
+you've found the bug!
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+CI/CD is what turns "it works on my machine" into "it's proven to work,
+automatically, on every single change." Master it now and every level
+after this one ships with confidence instead of crossed fingers.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 38 - Production Debugging
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐ (Advanced)
+
+Remember:
+- gofmt -l . exits 0 even when it lists files - check its OUTPUT, not its
+  exit code
+- Pin action versions (@v4, not @main) for reproducible builds
+- Never hardcode secrets - always ${{ secrets.NAME }}
+- Cache dependencies (cache: true) to keep the pipeline fast
+- Test on every pull request, not just on merge to main
+
+Let's go! 🎉
+
+================================================================================

@@ -1,0 +1,418 @@
+================================================================================
+                       LEVEL 39: SYSTEM DESIGN
+                         START HERE! 👋
+================================================================================
+
+Welcome to Level 39! You've mastered production debugging (Level 38) - finding
+out why a RUNNING system is misbehaving. Now it's time to learn SYSTEM DESIGN -
+how to design a system so it holds up at scale and fails gracefully in the
+first place, before an incident ever happens.
+
+This level is more architectural than hands-on coding. Some topics (caching,
+rate limiting, circuit breakers) have real, runnable Go code you'll write and
+verify yourself. Others (database sharding, load balancer choice, message
+queue selection) are judgment calls about tradeoffs - there's no compiler
+error for picking the wrong one, so this level teaches you to reason about
+them with diagrams and worked scenarios instead of pretending there's an
+"output" to run.
+
+================================================================================
+                          WHAT YOU'LL LEARN
+================================================================================
+
+✅ The mindset shift: "does this function work?" -> "will this system hold
+   up at scale, and does it fail gracefully?"
+✅ Vertical vs horizontal scaling, and why stateless services scale out
+   more easily (bridging Level 31/32's session-vs-JWT discussion)
+✅ Caching: cache-aside vs write-through, plus a REAL, working LRU-ish cache
+✅ Rate limiting: the token-bucket algorithm, plus a REAL, working limiter
+✅ Load balancing: round-robin, least-connections, consistent hashing
+✅ Database scaling: read replicas, sharding, connection pooling
+✅ Message queues vs in-process channels: when each is the right call
+✅ Circuit breakers: closed/open/half-open, plus a REAL, working breaker
+✅ Honest monolith-vs-microservices tradeoffs
+✅ A full system design case study: a URL shortener, start to finish
+
+================================================================================
+                         ESTIMATED TIME
+================================================================================
+
+Level 39 Duration: 5-6 hours
+- Theory & Concepts: 2 hours
+- Hands-on Exercises (real code + design exercises): 2.5-3 hours
+- Bonus Challenges: 0.5-1 hour
+- Review & Consolidation: 0.5 hours
+
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+================================================================================
+                       BEFORE YOU START
+================================================================================
+
+Prerequisites:
+  ✅ Completed Level 38 (Production Debugging)
+  ✅ Comfortable with Go's concurrency primitives (goroutines, channels,
+     select, mutex/waitgroup/atomic - Levels 20-23)
+  ✅ Comfortable with the Repository-Service-Handler pattern (Level 30)
+  ✅ Familiar with database connection pooling (Level 29) and the
+     session-vs-JWT tradeoff (Level 32)
+
+If you haven't done Level 38, go back and complete it first!
+
+================================================================================
+                      RECOMMENDED LEARNING PATH
+================================================================================
+
+Day 1 - Mindset & Scalability Fundamentals (2 hours)
+  → Read START_HERE.txt (this file) - 10 min
+  → Read README.md Sections 1-2 - 25 min
+  → Reflect on the stateless/stateful bridge to Level 31/32 - 30 min
+
+Day 2 - Caching & Rate Limiting (2.5 hours)
+  → Read README.md Sections 3-4 - 30 min
+  → Complete Exercises 1-3 (build the LRU cache + rate limiter for real)
+
+Day 3 - Load Balancing & Database Scaling (2 hours)
+  → Read README.md Sections 5-6 - 25 min
+  → Complete Exercises 4-5
+
+Day 4 - Message Queues & Circuit Breakers (2 hours)
+  → Read README.md Sections 7-8 - 25 min
+  → Complete Exercises 6-7 (build the circuit breaker for real)
+
+Day 5 - Monolith vs Microservices & the Case Study (2 hours)
+  → Read README.md Sections 9-10 - 30 min
+  → Complete Exercises 8-9
+
+Day 6 - The Comprehensive Design Document (1.5 hours)
+  → Complete Exercise 10 (URL-shortener design document)
+  → Try bonus challenges
+
+Day 7 - Consolidate (1 hour)
+  → Review with STUDY_GUIDE.md and QUICK_REFERENCE.md
+  → Ask: "Can I explain every design decision in the case study out loud?"
+
+================================================================================
+                      THE BIG PICTURE
+================================================================================
+
+What Is System Design?
+  → Reasoning about how a system (not just one function) behaves under
+    real traffic, real growth, and real failures
+  → The layer of thinking ABOVE correct code: your code can be flawless
+    and the system can still fall over if nobody designed for scale
+    and failure
+
+Why It Matters:
+  → Almost every level before this one asked "does this work correctly
+    once?" System design asks "does it keep working when 10,000 people
+    hit it at once, and what happens when a dependency goes down?"
+  → This is the last conceptual leap before Level 40 (Real-World
+    Projects) has you build complete systems using everything you know
+
+================================================================================
+                 BE HONEST: REAL CODE VS DESIGN REASONING
+================================================================================
+
+This level is explicit about which topics are which - don't expect
+"output" from a design discussion, and don't expect a design topic's
+reasoning to be reducible to one right answer the way code is.
+
+  REAL, RUNNABLE, VERIFIED CODE:
+    - LRU-ish cache (Level 10's maps + Level 23's mutexes)
+    - Token-bucket rate limiter (Level 22's timers)
+    - Round-robin load-balancer selector
+    - Circuit breaker (closed/open/half-open)
+    - Bonus: sliding-window rate limiter
+
+  DESIGN REASONING (diagrams and worked scenarios, no runnable output):
+    - Cache-aside vs write-through choice
+    - Database read replicas vs sharding
+    - Load balancer algorithm choice for a given workload
+    - Message queue vs in-process channel decision
+    - Monolith vs microservices tradeoff
+    - The full URL-shortener case study
+
+================================================================================
+                 SCALABILITY: THE CORE FORK IN THE ROAD
+================================================================================
+
+VERTICAL (scale up): bigger machine. Simple, but has a ceiling and is a
+single point of failure.
+
+HORIZONTAL (scale out): more machines. No ceiling, but needs a load
+balancer and needs the service to handle shared state correctly.
+
+THE KEY DETAIL: stateless services (no per-client data in server memory -
+think JWTs, Level 32) scale horizontally almost for free. Stateful
+services (server-side sessions) need sticky routing or a shared store
+just to survive having more than one instance.
+
+================================================================================
+                    A SIMPLE EXAMPLE: TOKEN-BUCKET RATE LIMITING
+================================================================================
+
+package main
+
+import (
+    "fmt"
+    "sync"
+    "time"
+)
+
+type TokenBucket struct {
+    mu         sync.Mutex
+    capacity   float64
+    tokens     float64
+    refillRate float64
+    lastRefill time.Time
+}
+
+func (b *TokenBucket) Allow() bool {
+    b.mu.Lock()
+    defer b.mu.Unlock()
+    now := time.Now()
+    b.tokens += now.Sub(b.lastRefill).Seconds() * b.refillRate
+    if b.tokens > b.capacity {
+        b.tokens = b.capacity
+    }
+    b.lastRefill = now
+    if b.tokens >= 1 {
+        b.tokens--
+        return true
+    }
+    return false
+}
+
+Output (capacity 3, refill 5/sec, 5 requests back-to-back):
+  Request 1: allowed=true
+  Request 2: allowed=true
+  Request 3: allowed=true
+  Request 4: allowed=false
+  Request 5: allowed=false
+
+Three tokens allow a burst of three; the bucket runs dry and denies the
+rest until it refills. This is real, executed Go code - see README.md
+Section 4 for the full program and EXERCISES.md Exercise 3 to build it
+yourself.
+
+================================================================================
+                      KEY CONCEPTS SUMMARY
+================================================================================
+
+1. THE MINDSET SHIFT
+   "Does it work?" -> "Does it hold up at scale, and fail gracefully?"
+
+2. SCALABILITY
+   Vertical (bigger machine) vs horizontal (more machines). Stateless
+   services scale horizontally far more easily than stateful ones.
+
+3. CACHING
+   Cache-aside (lazy, most common) vs write-through (always fresh, costs
+   more per write). A real LRU-ish cache with verified eviction.
+
+4. RATE LIMITING
+   Token bucket allows bursts, then smooths to a steady rate. A real,
+   verified implementation - and a sliding-window alternative in the
+   bonus challenges.
+
+5. LOAD BALANCING
+   Round-robin (simple, blind to load), least-connections (adapts to
+   load), consistent hashing (key-to-backend stickiness).
+
+6. DATABASE SCALING
+   Read replicas scale reads; sharding scales writes/data volume at real
+   operational cost. Connection limits are a SHARED budget across every
+   instance.
+
+7. MESSAGE QUEUES
+   In-process channels suffice for in-process fan-out. Real queues
+   (Kafka/RabbitMQ/SQS) earn their cost for cross-service fan-out and
+   crash durability.
+
+8. CIRCUIT BREAKERS
+   Closed (normal) -> Open (fail fast after N failures) -> Half-Open
+   (one trial call) -> Closed or back to Open.
+
+9. MONOLITH VS MICROSERVICES
+   Start as a well-layered monolith. Extract services only on a
+   measured need for independent scaling or deployment - not by default.
+
+10. THE CASE STUDY
+    A URL shortener ties every concept together, end to end - exactly
+    the shape of project Level 40 has you build for real.
+
+================================================================================
+                    COMMON MISTAKES TO AVOID
+================================================================================
+
+❌ WRONG: Adopting microservices before there's a scaling or team-autonomy
+   problem they actually solve.
+
+✅ RIGHT: Start as a well-layered monolith (Level 30's pattern). Extract
+   a service only on a measured need.
+
+---
+
+❌ WRONG: Adding a cache with no invalidation strategy ("it'll refresh
+   eventually").
+
+✅ RIGHT: Invalidate explicitly on write, with a short TTL as a backstop.
+
+---
+
+❌ WRONG: Shipping a public endpoint with no rate limit.
+
+✅ RIGHT: Rate-limit every public endpoint before it ships.
+
+---
+
+❌ WRONG: Scaling application instances without checking whether
+   instances × SetMaxOpenConns still fits the database's max_connections.
+
+✅ RIGHT: Treat the database's connection ceiling as a shared budget
+   across every instance.
+
+---
+
+❌ WRONG: Designing for scale you don't have yet - sharding and a
+   microservice per feature for a service handling 50 requests/minute.
+
+✅ RIGHT: Build the simplest design that meets today's real requirements.
+
+================================================================================
+                      GETTING STARTED
+================================================================================
+
+Step 1: Read
+  Open README.md and read Sections 1-4 (about 55 minutes)
+
+Step 2: Look at Diagrams
+  Open STUDY_GUIDE.md and study the cache, rate-limiting, and load
+  balancing diagrams
+
+Step 3: Start Practicing
+  Open EXERCISES.md and start with Exercise 1 (the LRU cache)
+
+Step 4: Reference as Needed
+  Keep QUICK_REFERENCE.md open while practicing
+
+Step 5: Complete All
+  Try to complete all 10 exercises, including the comprehensive design
+  document in Exercise 10
+
+================================================================================
+                      FILES IN THIS LEVEL
+================================================================================
+
+📄 START_HERE.txt (THIS FILE)
+   → Overview and quick start guide
+
+📄 README.md
+   → Full theory: scalability, caching, rate limiting, load balancing,
+     database scaling, message queues, circuit breakers, monolith vs
+     microservices, and the URL-shortener case study
+   → Explicit throughout about which sections are real/runnable code
+     and which are design reasoning
+
+📄 EXERCISES.md
+   → 10 exercises (4 real/runnable, 6 design) + 3 bonus challenges
+   → Copy-paste ready bash commands for the real exercises
+   → Expected outputs for verification, and Discussion Points for the
+     design exercises
+
+📄 STUDY_GUIDE.md
+   → Cache-aside vs write-through diagram
+   → Token-bucket algorithm diagram
+   → Load-balancing algorithm comparison table
+   → Read-replica architecture diagram
+   → Circuit-breaker state-machine diagram
+   → Monolith vs microservices tradeoff table
+
+📄 QUICK_REFERENCE.md
+   → One-page cheat sheet
+   → Essential code shapes and design-decision tables
+   → Common mistakes table
+
+📄 INDEX.md
+   → Navigation guide
+   → Links to all materials
+
+================================================================================
+                      QUICK FAQ
+================================================================================
+
+Q: Why does this level mix code and "design exercises" with no code?
+A: System design genuinely is a mix. Caching, rate limiting, and circuit
+   breakers reduce to real, testable Go code - so this level writes and
+   runs that code for real. Database sharding strategy or monolith vs
+   microservices are judgment calls about tradeoffs with no single
+   correct output - so this level teaches you to reason about those with
+   diagrams and worked scenarios instead of faking an "output."
+
+Q: Do I need to install Kafka or RabbitMQ for this level?
+A: No. Message queues are covered conceptually and by name (Section 7),
+   since a meaningful example needs an actual running broker. The
+   in-process channel pattern (Level 21) is what gets implemented.
+
+Q: Should I default to microservices for a new project?
+A: No - Section 9 argues against this directly. Start as a well-layered
+   monolith and extract services only when there's a measured need.
+
+Q: How is this different from Level 38 (Production Debugging)?
+A: Level 38 diagnoses why a RUNNING system is misbehaving. Level 39
+   designs the system BEFORE it's misbehaving, so it holds up and fails
+   gracefully in the first place.
+
+================================================================================
+                      WHAT COMES AFTER LEVEL 39?
+================================================================================
+
+Level 40: Real-World Projects
+  - Take everything from Levels 0-39 and build complete, real projects
+    end-to-end
+  - Apply the Repository-Service-Handler pattern, real databases, and
+    this level's system design thinking together
+  - Move from "I understand the pieces" to "I built the whole thing"
+
+You'll draw on this level's thinking constantly in Level 40 - every real
+project needs a caching plan, a rate-limiting plan, and an honest call
+on how much architecture it actually needs.
+
+================================================================================
+                    YOU'RE READY TO START! 🚀
+================================================================================
+
+Here's what to do next:
+
+1. Close this file
+2. Open README.md
+3. Read Sections 1-4
+4. Come back and start Exercise 1
+
+System design is the last conceptual leap before Level 40 asks you to
+build the real thing. You've done the hard work of learning Go correctly -
+now learn to design systems that survive contact with the real world.
+
+You've got this! 💪
+
+================================================================================
+                      HAPPY LEARNING!
+================================================================================
+
+Next Level: Level 40 - Real-World Projects
+Estimated completion: 5-6 hours
+Difficulty: ⭐⭐⭐⭐ (Advanced)
+
+Remember:
+- The mindset shift: "does it work?" -> "does it hold up at scale, and
+  fail gracefully?"
+- Stateless services scale horizontally far more easily than stateful ones
+- Real code (cache, rate limiter, circuit breaker) vs design reasoning
+  (sharding, message queues, microservices) - know which is which
+- Start simple, scale what actually needs scaling, measure before
+  optimizing
+
+Let's go! 🎉
+
+================================================================================
