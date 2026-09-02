@@ -463,7 +463,6 @@ exit status 2
 **Why this matters in an interview:** This is a rite-of-passage Go bug — the interviewer wants to hear you say "reads are safe, writes panic" precisely, not "nil maps are unsafe" broadly.
 
 ---
-
 ## 2. Functions, Closures, defer
 
 **Q: Why can't you write `y := x++` in Go — isn't `++` just like in C or Java?**
@@ -671,7 +670,6 @@ error: average: recovered from panic: runtime error: integer divide by zero
 **Why this matters in an interview:** it distinguishes candidates who know named returns as mere self-documentation from those who understand they're a load-bearing mechanism for the recover-and-annotate error-handling idiom used throughout real Go codebases.
 
 ---
-
 ## 3. Pointers & Structs
 
 **Q: Does Go pass function arguments by reference or by value — and what actually happens when you pass a pointer?**
@@ -1070,7 +1068,6 @@ standalone Base value, b.Describe(): #7 Grace
 **Why this matters in an interview:** Interviewers coming from OOP languages often conflate embedding with inheritance; correctly calling it "composition with syntactic promotion" and noting the absence of dynamic dispatch shows real depth.
 
 ---
-
 ## 4. Methods & Interfaces
 
 **Q: When do you use a value receiver versus a pointer receiver on a method, and what's the rule about mixing them on the same type?**
@@ -1485,7 +1482,6 @@ exit status 2
 **Why this matters in an interview:** the interviewer wants to hear that you default to comma-ok in normal code paths and can name the exact panic wording — showing you've actually hit it, not just read about it.
 
 ---
-
 ## 5. Error Handling
 
 **Q: Why does Go use returned errors instead of exceptions?**
@@ -1943,7 +1939,6 @@ exit status 2
 **Why this matters in an interview:** this is one of the sharpest edges in Go's error-handling model, and getting it wrong in production means a "defensive" recover silently fails to protect anything — the interviewer is checking you know recover's placement is not a suggestion, it's a hard requirement of the language spec.
 
 ---
-
 ## 6. Concurrency
 
 **Q: What's the difference between concurrency and parallelism in Go?**
@@ -2577,7 +2572,6 @@ ctx.Err(): context deadline exceeded
 **Why this matters in an interview:** it tests whether a candidate understands `context` as a structured cancellation *protocol* (reason + deadline + propagation + values) rather than "just another way to close a channel," and whether they remember `defer cancel()` to avoid leaking the timer even on the fast path.
 
 ---
-
 ## 7. Generics
 
 **Q: Go survived a decade without generics — why were they finally added, and what problem do they actually solve?**
@@ -2864,7 +2858,6 @@ total area: 24.57
 **Why this matters in an interview:** the interviewer wants to see you distinguish "shared data shape → generics" from "shared behavior, divergent implementation → interfaces," since reaching for the wrong tool is the most common generics misuse they see in real code review.
 
 ---
-
 ## 8. Testing
 
 **Q: What's a table-driven test, and why is it considered the idiomatic Go pattern?**
@@ -3172,7 +3165,6 @@ ok  	scratch3	0.493s
 **Why this matters in an interview:** it reveals whether the candidate understands Go's "accept interfaces, return structs" convention and designs for testability from the start, rather than bolting on a mocking framework after the fact.
 
 ---
-
 ## 9. Web / Backend
 
 **Q: What does Go's `http.Handler` interface actually look like, and why does such a tiny interface matter so much in practice?**
@@ -3669,7 +3661,6 @@ OpenConnections=2 InUse=0 Idle=2
 **Why this matters in an interview:** This question separates people who've memorized "`sql.DB` is a pool" as a fact from people who understand the actual lazy-connection lifecycle and know to call `Ping()` (or check `Stats()`) when debugging connection-related production issues.
 
 ---
-
 ## 10. System Design (Interview Framing)
 
 System-design questions aren't testing whether you know "the" correct architecture — they're testing your reasoning process under ambiguity. Below, each question is answered by actually walking through a concrete scenario end-to-end, the way you'd want to perform it live, rather than describing the framework in the abstract.
